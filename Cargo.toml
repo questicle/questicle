@@ -1,0 +1,28 @@
+[package]
+name = "questicle"
+version = "0.1.0"
+edition = "2021"
+description = "Questicle - a general purpose scripting language for games"
+license = "MIT OR Apache-2.0"
+authors = ["asta <you@example.com>"]
+repository = ""
+
+[lib]
+name = "questicle"
+path = "src/lib.rs"
+
+[[bin]]
+name = "qk"
+path = "src/main.rs"
+
+[dependencies]
+thiserror = "1.0"
+logos = "0.14"
+unicode-segmentation = "1.11"
+rand = "0.8"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+rustyline = "14.0"
+
+[dev-dependencies]
+pretty_assertions = "1.4"

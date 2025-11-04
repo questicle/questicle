@@ -1,0 +1,4 @@
+let npc = { name: "Elder", mood: "wise" };
+print("NPC " + npc.name + ": Welcome, traveler.");
+let choices = ["Who are you?", "Any quests?", "Goodbye."];
+for (i in [0,1,2]) { print("Choice " + i + ": " + choices[i]); }
