@@ -47,8 +47,48 @@ export async function activate(context: vscode.ExtensionContext) {
         terminal.sendText(`${cmd} ${doc.uri.fsPath}`);
     });
     context.subscriptions.push(runCmd);
+
+    // Register formatting provider using CLI (qk fmt --stdin)
+    context.subscriptions.push(vscode.languages.registerDocumentFormattingEditProvider({ language: 'questicle' }, {
+        provideDocumentFormattingEdits: async (document, options, token) => {
+            const root = workspaceFolders?.[0]?.uri.fsPath ?? process.cwd();
+            const qkPath = process.platform === 'win32' ? path.join(root, 'target', 'debug', 'qk.exe') : path.join(root, 'target', 'debug', 'qk');
+            const cmd = fs.existsSync(qkPath) ? qkPath : (process.platform === 'win32' ? 'qk.exe' : 'qk');
+            const input = document.getText();
+            const result = await runCli(cmd, ['fmt', '--stdin'], input, root);
+            if (result === undefined) { return []; }
+            return [vscode.TextEdit.replace(fullRange(document), result)];
+        }
+    }));
+
+    // Expose a command to format explicitly
+    const fmtCmd = vscode.commands.registerCommand('questicle.formatDocument', async () => {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor || editor.document.languageId !== 'questicle') { return; }
+        await vscode.commands.executeCommand('editor.action.formatDocument');
+    });
+    context.subscriptions.push(fmtCmd);
 }
 
 export function deactivate(): Thenable<void> | undefined {
     return undefined;
+}
+
+function fullRange(doc: vscode.TextDocument): vscode.Range {
+    const lastLine = doc.lineCount - 1;
+    return new vscode.Range(0, 0, lastLine, doc.lineAt(lastLine).text.length);
+}
+
+async function runCli(cmd: string, args: string[], stdin: string, cwd: string): Promise<string | undefined> {
+    return new Promise((resolve) => {
+        const cp = require('child_process').spawn(cmd, args, { cwd });
+        let out = '';
+        let err = '';
+        cp.stdout.on('data', (d: Buffer) => out += d.toString());
+        cp.stderr.on('data', (d: Buffer) => err += d.toString());
+        cp.on('error', () => resolve(undefined));
+        cp.on('close', (_code: number) => resolve(out));
+        cp.stdin.write(stdin);
+        cp.stdin.end();
+    });
 }

@@ -20,12 +20,20 @@
     "categories": [
         "Programming Languages"
     ],
-    "activationEvents": [],
+    "activationEvents": [
+        "onLanguage:questicle",
+        "onCommand:questicle.runFile",
+        "onCommand:questicle.formatDocument"
+    ],
     "contributes": {
         "commands": [
             {
                 "command": "questicle.runFile",
                 "title": "Questicle: Run Current File"
+            },
+            {
+                "command": "questicle.formatDocument",
+                "title": "Questicle: Format Document"
             }
         ],
         "keybindings": [
@@ -60,6 +68,11 @@
                 "configuration": "./language-configuration.json"
             }
         ],
+        "configurationDefaults": {
+            "[questicle]": {
+                "editor.defaultFormatter": "questicle.questicle-vscode"
+            }
+        },
         "grammars": [
             {
                 "language": "questicle",

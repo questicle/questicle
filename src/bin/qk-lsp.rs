@@ -232,14 +232,13 @@ impl LanguageServer for Backend {
         let uri = params.text_document.uri;
         let docs = self.docs.read().await;
         if let Some(text) = docs.get(&uri) {
-            if let Ok(program) = Parser::new(text).parse_program() {
-                let pretty = questicle::format::format_program(&program);
-                let edit = TextEdit {
-                    range: Range::new(Position::new(0, 0), Position::new(u32::MAX, u32::MAX)),
-                    new_text: pretty,
-                };
-                return Ok(Some(vec![edit]));
-            }
+            // Always use tolerant token-based formatter to preserve comments
+            let pretty = questicle::formatter::format_source(text);
+            let edit = TextEdit {
+                range: Range::new(Position::new(0, 0), Position::new(u32::MAX, u32::MAX)),
+                new_text: pretty,
+            };
+            return Ok(Some(vec![edit]));
         }
         Ok(Some(vec![]))
     }
