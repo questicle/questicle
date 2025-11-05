@@ -69,7 +69,7 @@ fn tokenize(src: &str) -> Vec<Tok> {
     let bytes = src.as_bytes();
     let len = bytes.len();
     let s = src;
-    let mut in_block_comment = false;
+    // No block comment state required; comments are emitted directly
     while i < len {
         let c = s[i..].chars().next().unwrap();
         // Newline
@@ -294,10 +294,7 @@ fn render(toks: Vec<Tok>, opts: &FormatterOptions) -> String {
     let mut prev_was_token = false; // for spacing
     let mut prev_kind: Option<TKind> = None;
 
-    let space_around = |k: &TKind| match k {
-        TKind::Op(_) => true,
-        _ => false,
-    };
+    // spacing rules handled inline
 
     let mut it = toks.into_iter().peekable();
     while let Some(tok) = it.next() {
@@ -329,24 +326,45 @@ fn render(toks: Vec<Tok>, opts: &FormatterOptions) -> String {
                 if need_indent {
                     write_indent(&mut out, indent, opts.indent_size);
                 }
+                let has_newline = text.contains('\n');
                 // Preserve block as-is
-                let lines: Vec<&str> = text.split('\n').collect();
-                for (i, l) in lines.iter().enumerate() {
-                    if i == 0 {
-                        out.push_str(l);
-                    } else {
+                if has_newline {
+                    let lines: Vec<&str> = text.split('\n').collect();
+                    for (i, l) in lines.iter().enumerate() {
+                        if i == 0 {
+                            out.push_str(l);
+                        } else {
+                            out.push('\n');
+                            write_indent(&mut out, indent, opts.indent_size);
+                            out.push_str(l);
+                        }
+                    }
+                } else {
+                    out.push_str(&text);
+                }
+                // If the comment was multi-line, we likely ended with a newline already
+                if has_newline {
+                    if !out.ends_with('\n') {
                         out.push('\n');
-                        write_indent(&mut out, indent, opts.indent_size);
-                        out.push_str(l);
+                    }
+                    need_indent = true;
+                    prev_was_token = false;
+                    blanks = 1;
+                } else {
+                    // inline block comment stays inline; ensure spacing before next identifier-like token
+                    need_indent = false;
+                    prev_was_token = true;
+                    blanks = 0;
+                    if let Some(next) = it.peek() {
+                        let needs_space = matches!(
+                            next.kind,
+                            TKind::Ident(_) | TKind::Number(_) | TKind::Str(_) | TKind::Keyword(_)
+                        );
+                        if needs_space && !out.ends_with(' ') && !out.ends_with('\n') {
+                            out.push(' ');
+                        }
                     }
                 }
-                // If next isn't newline, end line
-                if !out.ends_with('\n') {
-                    out.push('\n');
-                }
-                need_indent = true;
-                prev_was_token = false;
-                blanks = 1;
             }
             TKind::RBrace => {
                 // Close block: dedent first
