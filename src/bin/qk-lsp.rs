@@ -260,42 +260,38 @@ impl LanguageServer for Backend {
                 if let Some((fname, arg_index)) = extract_call_context(upto) {
                     if let Ok(program) = Parser::new(text).parse_program() {
                         let tc = questicle::typecheck::check_program(&program);
-                        if let Some(t) = tc.env.vars.get(&fname) {
-                            if let questicle::typecheck::Type::Func(params, ret) = t {
-                                let label = format!(
-                                    "{}({}) -> {}",
-                                    fname,
-                                    params
-                                        .iter()
-                                        .map(|p| p.to_string())
-                                        .collect::<Vec<_>>()
-                                        .join(", "),
-                                    ret
-                                );
-                                let parameters: Vec<ParameterInformation> = params
+                        if let Some(questicle::typecheck::Type::Func(params, ret)) =
+                            tc.env.vars.get(&fname)
+                        {
+                            let label = format!(
+                                "{}({}) -> {}",
+                                fname,
+                                params
                                     .iter()
-                                    .enumerate()
-                                    .map(|(i, p)| ParameterInformation {
-                                        label: ParameterLabel::Simple(format!(
-                                            "arg{}: {}",
-                                            i + 1,
-                                            p
-                                        )),
-                                        documentation: None,
-                                    })
-                                    .collect();
-                                let sig = SignatureInformation {
-                                    label,
+                                    .map(|p| p.to_string())
+                                    .collect::<Vec<_>>()
+                                    .join(", "),
+                                ret
+                            );
+                            let parameters: Vec<ParameterInformation> = params
+                                .iter()
+                                .enumerate()
+                                .map(|(i, p)| ParameterInformation {
+                                    label: ParameterLabel::Simple(format!("arg{}: {}", i + 1, p)),
                                     documentation: None,
-                                    parameters: Some(parameters),
-                                    active_parameter: Some(arg_index as u32),
-                                };
-                                return Ok(Some(SignatureHelp {
-                                    signatures: vec![sig],
-                                    active_signature: Some(0),
-                                    active_parameter: Some(arg_index as u32),
-                                }));
-                            }
+                                })
+                                .collect();
+                            let sig = SignatureInformation {
+                                label,
+                                documentation: None,
+                                parameters: Some(parameters),
+                                active_parameter: Some(arg_index as u32),
+                            };
+                            return Ok(Some(SignatureHelp {
+                                signatures: vec![sig],
+                                active_signature: Some(0),
+                                active_parameter: Some(arg_index as u32),
+                            }));
                         }
                     }
                 }
@@ -357,7 +353,7 @@ impl Backend {
                 // crude mapping: only has line/col in our error types in most cases
                 let (line, col, msg) = match e {
                     questicle::parser::ParseError::Unexpected { line, col } => {
-                        (line, col, format!("Unexpected token"))
+                        (line, col, "Unexpected token".to_string())
                     }
                     questicle::parser::ParseError::Expected {
                         expected,
@@ -421,8 +417,7 @@ fn find_first_occurrence(text: &str, needle: &str) -> Option<(usize, usize, usiz
 fn find_decl_of(text: &str, name: &str) -> Option<(usize, usize, usize)> {
     for (i, line) in text.lines().enumerate() {
         let trimmed = line.trim_start();
-        if trimmed.starts_with("let ") {
-            let after = &trimmed[4..];
+        if let Some(after) = trimmed.strip_prefix("let ") {
             let ident: String = after
                 .chars()
                 .take_while(|c| c.is_alphanumeric() || *c == '_')
@@ -431,8 +426,7 @@ fn find_decl_of(text: &str, name: &str) -> Option<(usize, usize, usize)> {
                 let start = line.find(&ident)?;
                 return Some((i, start, start + ident.len()));
             }
-        } else if trimmed.starts_with("fn ") {
-            let after = &trimmed[3..];
+        } else if let Some(after) = trimmed.strip_prefix("fn ") {
             let ident: String = after
                 .chars()
                 .take_while(|c| c.is_alphanumeric() || *c == '_')

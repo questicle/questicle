@@ -19,7 +19,7 @@ pub fn install_std(env: &EnvRef, host: Host) {
                     v => print!("{}", v),
                 }
             }
-            println!("");
+            println!();
             Ok(Value::Null)
         }),
     );
@@ -43,7 +43,7 @@ pub fn install_std(env: &EnvRef, host: Host) {
     e.define(
         "len".into(),
         native("len", |args, _| {
-            let n = match args.get(0) {
+            let n = match args.first() {
                 Some(Value::String(s)) => s.chars().count(),
                 Some(Value::List(v)) => v.len(),
                 Some(Value::Map(m)) => m.len(),
@@ -55,7 +55,7 @@ pub fn install_std(env: &EnvRef, host: Host) {
     e.define(
         "keys".into(),
         native("keys", |args, _| {
-            if let Some(Value::Map(m)) = args.get(0) {
+            if let Some(Value::Map(m)) = args.first() {
                 Ok(Value::List(m.keys().cloned().map(Value::String).collect()))
             } else {
                 Ok(Value::List(vec![]))
@@ -64,7 +64,7 @@ pub fn install_std(env: &EnvRef, host: Host) {
     );
     e.define(
         "push".into(),
-        native("push", |args, _| match (args.get(0), args.get(1)) {
+        native("push", |args, _| match (args.first(), args.get(1)) {
             (Some(Value::List(list)), Some(val)) => {
                 let mut new = list.clone();
                 new.push(val.clone());
@@ -76,7 +76,7 @@ pub fn install_std(env: &EnvRef, host: Host) {
     e.define(
         "pop".into(),
         native("pop", |args, _| {
-            if let Some(Value::List(list)) = args.get(0) {
+            if let Some(Value::List(list)) = args.first() {
                 let mut v = list.clone();
                 Ok(v.pop().unwrap_or(Value::Null))
             } else {
@@ -89,7 +89,7 @@ pub fn install_std(env: &EnvRef, host: Host) {
     e.define(
         "host".into(),
         native("host", move |args, _| {
-            let op = match args.get(0) {
+            let op = match args.first() {
                 Some(Value::String(s)) => s.clone(),
                 _ => return Err("host(op, payload)".into()),
             };
@@ -102,7 +102,7 @@ pub fn install_std(env: &EnvRef, host: Host) {
     e.define(
         "on".into(),
         native("on", move |args, _env| {
-            let name = match args.get(0) {
+            let name = match args.first() {
                 Some(Value::String(s)) => s.clone(),
                 _ => return Err("on(name, fn)".into()),
             };
@@ -119,7 +119,7 @@ pub fn install_std(env: &EnvRef, host: Host) {
     e.define(
         "emit".into(),
         native("emit", move |args, env| {
-            let name = match args.get(0) {
+            let name = match args.first() {
                 Some(Value::String(s)) => s.clone(),
                 _ => return Err("emit(name, data)".into()),
             };

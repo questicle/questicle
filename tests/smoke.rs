@@ -10,5 +10,5 @@ fn hello_runs() {
     let program = Parser::new(src).parse_program().expect("parse");
     let mut interp = Interpreter::with_host(Host::default());
     let v = interp.eval(program).expect("run");
-    assert!(matches!(v, Some(_)));
+    assert!(v.is_some());
 }

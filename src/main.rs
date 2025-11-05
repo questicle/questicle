@@ -5,7 +5,7 @@ use std::io::{self, Read};
 use std::{fs, path::PathBuf};
 
 fn main() {
-    let mut args = std::env::args().skip(1);
+    let args = std::env::args().skip(1);
     let mut repl = false;
     let mut file: Option<PathBuf> = None;
     // fmt options
@@ -15,7 +15,7 @@ fn main() {
     let mut fmt_stdin = false;
     let mut fmt_paths: Vec<PathBuf> = Vec::new();
 
-    while let Some(arg) = args.next() {
+    for arg in args {
         match arg.as_str() {
             "-h" | "--help" => {
                 print_help();
@@ -54,7 +54,7 @@ fn main() {
     let mut interp = Interpreter::with_host(host);
 
     if let Some(ref path) = file {
-        let src = fs::read_to_string(&path).expect("failed to read file");
+        let src = fs::read_to_string(path).expect("failed to read file");
         run_source(&src, &mut interp);
     }
 
@@ -140,10 +140,8 @@ fn run_fmt(stdin_mode: bool, paths: &[PathBuf], check: bool, write: bool) -> io:
             } else {
                 print!("{}", formatted);
             }
-        } else {
-            if !write {
-                print!("{}", formatted);
-            }
+        } else if !write {
+            print!("{}", formatted);
         }
         Ok(0)
     }

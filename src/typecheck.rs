@@ -257,12 +257,9 @@ fn infer_expr(expr: &Expr, env: &mut TypeEnv, errors: &mut Vec<TypeError>) -> Ty
             let r = infer_expr(right, env, errors);
             match op {
                 BinOp::Add => {
-                    // Runtime allows number+number => number, string+string => string,
-                    // and string+Any or Any+string => string (stringification).
+                    // Runtime allows number+number => number, string concatenation when either side is string
                     if l == Type::Number && r == Type::Number {
                         Type::Number
-                    } else if l == Type::String && r == Type::String {
-                        Type::String
                     } else if l == Type::String || r == Type::String {
                         Type::String
                     } else {
@@ -412,7 +409,7 @@ fn infer_expr(expr: &Expr, env: &mut TypeEnv, errors: &mut Vec<TypeError>) -> Ty
                 check_stmt(s, &mut child, annotated.as_ref(), errors);
                 // Crude inference: look for explicit returns in body isn't tracked; fallback None
             }
-            let ret_t = annotated.unwrap_or_else(|| inferred.unwrap_or(Type::Any));
+            let ret_t = annotated.or(inferred).unwrap_or(Type::Any);
             Type::Func(param_types, Box::new(ret_t))
         }
         Expr::List(items) => {

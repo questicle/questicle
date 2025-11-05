@@ -492,23 +492,17 @@ fn render(toks: Vec<Tok>, opts: &FormatterOptions) -> String {
                     need_indent = false;
                 }
                 // Add space if previous token requires it
-                if let Some(pk) = &prev_kind {
-                    match pk {
-                        TKind::Ident(_)
-                        | TKind::Number(_)
-                        | TKind::Str(_)
-                        | TKind::RParen
-                        | TKind::RBracket => {
-                            if !out.ends_with(' ') && !out.ends_with('\n') {
-                                out.push(' ');
-                            }
-                        }
-                        TKind::Keyword(_) => {
-                            if !out.ends_with(' ') && !out.ends_with('\n') {
-                                out.push(' ');
-                            }
-                        }
-                        _ => {}
+                if let Some(
+                    TKind::Ident(_)
+                    | TKind::Number(_)
+                    | TKind::Str(_)
+                    | TKind::RParen
+                    | TKind::RBracket
+                    | TKind::Keyword(_),
+                ) = &prev_kind
+                {
+                    if !out.ends_with(' ') && !out.ends_with('\n') {
+                        out.push(' ');
                     }
                 }
                 out.push_str(s);
@@ -520,18 +514,16 @@ fn render(toks: Vec<Tok>, opts: &FormatterOptions) -> String {
                     write_indent(&mut out, indent, opts.indent_size);
                     need_indent = false;
                 }
-                if let Some(pk) = &prev_kind {
-                    match pk {
-                        TKind::Ident(_)
-                        | TKind::Number(_)
-                        | TKind::Str(_)
-                        | TKind::RParen
-                        | TKind::RBracket => {
-                            if !out.ends_with(' ') && !out.ends_with('\n') {
-                                out.push(' ');
-                            }
-                        }
-                        _ => {}
+                if let Some(
+                    TKind::Ident(_)
+                    | TKind::Number(_)
+                    | TKind::Str(_)
+                    | TKind::RParen
+                    | TKind::RBracket,
+                ) = &prev_kind
+                {
+                    if !out.ends_with(' ') && !out.ends_with('\n') {
+                        out.push(' ');
                     }
                 }
                 out.push_str(s);
@@ -543,18 +535,16 @@ fn render(toks: Vec<Tok>, opts: &FormatterOptions) -> String {
                     write_indent(&mut out, indent, opts.indent_size);
                     need_indent = false;
                 }
-                if let Some(pk) = &prev_kind {
-                    match pk {
-                        TKind::Ident(_)
-                        | TKind::Number(_)
-                        | TKind::Str(_)
-                        | TKind::RParen
-                        | TKind::RBracket => {
-                            if !out.ends_with(' ') && !out.ends_with('\n') {
-                                out.push(' ');
-                            }
-                        }
-                        _ => {}
+                if let Some(
+                    TKind::Ident(_)
+                    | TKind::Number(_)
+                    | TKind::Str(_)
+                    | TKind::RParen
+                    | TKind::RBracket,
+                ) = &prev_kind
+                {
+                    if !out.ends_with(' ') && !out.ends_with('\n') {
+                        out.push(' ');
                     }
                 }
                 out.push_str(k);

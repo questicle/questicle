@@ -22,6 +22,8 @@ pub struct Parser {
     pos: usize,
 }
 
+type FnSig = (Vec<(String, Option<TypeExpr>)>, Option<TypeExpr>, Vec<Stmt>);
+
 impl Parser {
     pub fn new(src: &str) -> Self {
         let tokens = Lexer::new(src).lex();
@@ -136,10 +138,10 @@ impl Parser {
         }
         let i = self.pos + 1;
         if i + 1 < self.tokens.len() {
-            match (&self.tokens[i].kind, &self.tokens[i + 1].kind) {
-                (TokenKind::Identifier(_), TokenKind::Colon) => true,
-                _ => false,
-            }
+            matches!(
+                (&self.tokens[i].kind, &self.tokens[i + 1].kind),
+                (TokenKind::Identifier(_), TokenKind::Colon)
+            )
         } else {
             false
         }
@@ -426,9 +428,7 @@ impl Parser {
         Err(self.error_unexpected())
     }
 
-    fn function_literal(
-        &mut self,
-    ) -> Result<(Vec<(String, Option<TypeExpr>)>, Option<TypeExpr>, Vec<Stmt>), ParseError> {
+    fn function_literal(&mut self) -> Result<FnSig, ParseError> {
         self.consume(TokenKind::LeftParen, "(")?;
         let mut params: Vec<(String, Option<TypeExpr>)> = Vec::new();
         if !self.check(&TokenKind::RightParen) {

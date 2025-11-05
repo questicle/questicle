@@ -15,12 +15,6 @@ pub struct Host {
 }
 
 impl Host {
-    pub fn default() -> Self {
-        Self {
-            events: Rc::new(RefCell::new(HashMap::new())),
-        }
-    }
-
     pub fn on(&self, name: &str, func: Rc<Function>) {
         self.events
             .borrow_mut()
