@@ -24,6 +24,23 @@ cargo run -- -r
 cargo run -- examples/hello.qk
 ```
 
+### VS Code extension (local install)
+
+You can build and install the Questicle VS Code extension locally:
+
+```
+make install
+```
+
+This will:
+- build the Rust binaries (`qk`, `qk-lsp`)
+- build and package the VS Code extension
+- install the packaged `.vsix` into your VS Code
+
+Notes:
+- The extension looks for `qk-lsp` in `target/debug/` by default, or uses the `questicle.serverPath` setting if provided.
+- Packaged VSIX files are not committed to git (ignored by `.gitignore`).
+
 ## Language sketch
 
 - Values: number, string, bool, null, list, map, function
