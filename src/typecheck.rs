@@ -10,6 +10,8 @@ pub enum Type {
     Null,
     List(Box<Type>),
     Map(Box<Type>),
+    // Record with known fields -> more precise than Map
+    Record(BTreeMap<String, Type>),
     Func(Vec<Type>, Box<Type>),
     Any,
 }
@@ -256,31 +258,21 @@ fn infer_expr(expr: &Expr, env: &mut TypeEnv, errors: &mut Vec<TypeError>) -> Ty
                 }
                 BinOp::Eq | BinOp::Ne => Type::Bool,
                 BinOp::Lt | BinOp::Le | BinOp::Gt | BinOp::Ge => {
-                    if l == Type::Number && r == Type::Number {
+                    // If either side is Any, assume it's okay at compile time; runtime will decide
+                    if l == Type::Any || r == Type::Any || (l == Type::Number && r == Type::Number) {
                         Type::Bool
                     } else {
-                        errors.push(TypeError {
-                            message: format!(
-                                "Number operands required for comparison, got {} and {}",
-                                l, r
-                            ),
-                            subject: None,
-                        });
-                        Type::Any
+                        errors.push(TypeError { message: format!("Number operands required for comparison, got {} and {}", l, r), subject: None });
+                        Type::Bool
                     }
                 }
                 BinOp::And | BinOp::Or => {
-                    if l == Type::Bool && r == Type::Bool {
+                    // Allow 'any' to flow, assume bool result for control-flow typing
+                    if l == Type::Any || r == Type::Any || (l == Type::Bool && r == Type::Bool) {
                         Type::Bool
                     } else {
-                        errors.push(TypeError {
-                            message: format!(
-                                "Boolean operands required for logical operation, got {} and {}",
-                                l, r
-                            ),
-                            subject: None,
-                        });
-                        Type::Any
+                        errors.push(TypeError { message: format!("Boolean operands required for logical operation, got {} and {}", l, r), subject: None });
+                        Type::Bool
                     }
                 }
             }
@@ -295,11 +287,12 @@ fn infer_expr(expr: &Expr, env: &mut TypeEnv, errors: &mut Vec<TypeError>) -> Ty
                     }
                 }
                 UnOp::Not => {
-                    if t == Type::Bool {
+                    // Allow 'any' (runtime truthiness). Treat as bool result.
+                    if t == Type::Bool || t == Type::Any {
                         Type::Bool
                     } else {
                         errors.push(TypeError { message: format!("Unary ! expects bool, got {}", t), subject: None });
-                        Type::Any
+                        Type::Bool
                     }
                 }
             }
@@ -351,10 +344,14 @@ fn infer_expr(expr: &Expr, env: &mut TypeEnv, errors: &mut Vec<TypeError>) -> Ty
                     ty
                 })
                 .collect();
-            let ret_t = ret.as_ref().map(Type::from_expr).unwrap_or(Type::Any);
+            // If return type is not annotated, attempt to infer from last statement expression returns; else default Any
+            let annotated = ret.as_ref().map(Type::from_expr);
+            let inferred: Option<Type> = None;
             for s in body {
-                check_stmt(s, &mut child, Some(&ret_t), errors);
+                check_stmt(s, &mut child, annotated.as_ref(), errors);
+                // Crude inference: look for explicit returns in body isn't tracked; fallback None
             }
+            let ret_t = annotated.unwrap_or_else(|| inferred.unwrap_or(Type::Any));
             Type::Func(param_types, Box::new(ret_t))
         }
         Expr::List(items) => {
@@ -369,15 +366,13 @@ fn infer_expr(expr: &Expr, env: &mut TypeEnv, errors: &mut Vec<TypeError>) -> Ty
             Type::List(Box::new(t.unwrap_or(Type::Any)))
         }
         Expr::Map(props) => {
-            let mut t: Option<Type> = None;
-            for (_k, e) in props {
+            // Infer precise record type with field names
+            let mut fields: BTreeMap<String, Type> = BTreeMap::new();
+            for (k, e) in props {
                 let et = infer_expr(e, env, errors);
-                t = Some(match t {
-                    None => et,
-                    Some(prev) => unify(prev, et),
-                });
+                fields.insert(k.clone(), et);
             }
-            Type::Map(Box::new(t.unwrap_or(Type::Any)))
+            Type::Record(fields)
         }
         Expr::Index { target, index } => {
             let tt = infer_expr(target, env, errors);
@@ -394,9 +389,10 @@ fn infer_expr(expr: &Expr, env: &mut TypeEnv, errors: &mut Vec<TypeError>) -> Ty
                 }
             }
         }
-        Expr::Field { target, name: _ } => {
+        Expr::Field { target, name } => {
             let tt = infer_expr(target, env, errors);
             match tt {
+                Type::Record(fields) => fields.get(name).cloned().unwrap_or(Type::Any),
                 Type::Map(inner) => *inner,
                 _ => Type::Any,
             }
@@ -412,6 +408,22 @@ fn unify(a: Type, b: Type) -> Type {
         (Type::Any, t) | (t, Type::Any) => t,
         (Type::List(x), Type::List(y)) => Type::List(Box::new(unify(*x, *y))),
         (Type::Map(x), Type::Map(y)) => Type::Map(Box::new(unify(*x, *y))),
+        (Type::Record(mut rx), Type::Record(ry)) => {
+            let mut merged = BTreeMap::new();
+            for (k, vx) in rx.iter_mut() {
+                if let Some(vy) = ry.get(k) {
+                    merged.insert(k.clone(), unify(vx.clone(), vy.clone()));
+                } else {
+                    merged.insert(k.clone(), vx.clone());
+                }
+            }
+            for (k, vy) in ry.iter() {
+                if !merged.contains_key(k) {
+                    merged.insert(k.clone(), vy.clone());
+                }
+            }
+            Type::Record(merged)
+        }
         _ => Type::Any,
     }
 }
@@ -423,6 +435,11 @@ fn is_compatible(a: &Type, b: &Type) -> bool {
     match (a, b) {
         (Type::List(x), Type::List(y)) => is_compatible(x, y),
         (Type::Map(x), Type::Map(y)) => is_compatible(x, y),
+        // Structural: a record is compatible with a record if all fields in b exist in a and are compatible.
+        (Type::Record(ra), Type::Record(rb)) => rb.iter().all(|(k, vb)| match ra.get(k) {
+            Some(va) => is_compatible(va, vb),
+            None => false,
+        }),
         (Type::Null, _) => true, // allow null to flow anywhere
         _ => false,
     }
@@ -439,6 +456,13 @@ impl Display for Type {
             Type::Any => write!(f, "any"),
             Type::List(i) => write!(f, "list<{}>", i),
             Type::Map(i) => write!(f, "map<{}>", i),
+            Type::Record(fields) => {
+                let mut parts: Vec<String> = Vec::new();
+                for (k, v) in fields {
+                    parts.push(format!("{}:{}", k, v));
+                }
+                write!(f, "record{{{}}}", parts.join(", "))
+            }
             Type::Func(args, ret) => {
                 let parts: Vec<String> = args.iter().map(|a| a.to_string()).collect();
                 write!(f, "fn({}) -> {}", parts.join(", "), ret)

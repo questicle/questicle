@@ -638,19 +638,6 @@ impl Parser {
             None
         }
     }
-    fn take_ident(&mut self) -> Option<String> {
-        if let Some(Token {
-            kind: TokenKind::Identifier(s),
-            ..
-        }) = self.peek()
-        {
-            let v = s.clone();
-            self.advance();
-            Some(v)
-        } else {
-            None
-        }
-    }
 
     fn error_unexpected(&self) -> ParseError {
         if let Some(t) = self.peek() {
