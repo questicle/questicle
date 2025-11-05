@@ -1,4 +1,4 @@
-use crate::ast::Stmt;
+use crate::ast::{Stmt, TypeExpr};
 use std::cell::RefCell;
 use std::fmt::{Display, Formatter};
 use std::rc::Rc;
@@ -17,7 +17,8 @@ pub enum Value {
 #[derive(Clone)]
 pub enum Function {
     User {
-        params: Vec<String>,
+        params: Vec<(String, Option<TypeExpr>)>,
+        ret: Option<TypeExpr>,
         body: Vec<Stmt>,
         env: EnvRef,
     },

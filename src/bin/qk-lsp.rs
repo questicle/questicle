@@ -5,7 +5,7 @@ use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 
-use questicle::Parser;
+use questicle::{typecheck, Parser};
 
 struct Backend {
     client: Client,
@@ -29,6 +29,7 @@ impl LanguageServer for Backend {
             }),
             hover_provider: Some(HoverProviderCapability::Simple(true)),
             document_symbol_provider: Some(OneOf::Left(true)),
+            document_formatting_provider: Some(OneOf::Left(true)),
             ..Default::default()
         };
         Ok(InitializeResult {
@@ -80,6 +81,13 @@ impl LanguageServer for Backend {
             items.push(CompletionItem {
                 label: bi.to_string(),
                 kind: Some(CompletionItemKind::FUNCTION),
+                ..Default::default()
+            });
+        }
+        for ty_kw in ["number", "string", "bool", "null", "any", "list", "map"] {
+            items.push(CompletionItem {
+                label: ty_kw.to_string(),
+                kind: Some(CompletionItemKind::TYPE_PARAMETER),
                 ..Default::default()
             });
         }
@@ -165,14 +173,48 @@ impl LanguageServer for Backend {
         }
         Ok(None)
     }
+
+    async fn formatting(&self, params: DocumentFormattingParams) -> Result<Option<Vec<TextEdit>>> {
+        let uri = params.text_document.uri;
+        let docs = self.docs.read().await;
+        if let Some(text) = docs.get(&uri) {
+            if let Ok(program) = Parser::new(text).parse_program() {
+                let pretty = questicle::format::format_program(&program);
+                let edit = TextEdit {
+                    range: Range::new(Position::new(0, 0), Position::new(u32::MAX, u32::MAX)),
+                    new_text: pretty,
+                };
+                return Ok(Some(vec![edit]));
+            }
+        }
+        Ok(Some(vec![]))
+    }
 }
 
 impl Backend {
     async fn publish_diagnostics(&self, uri: Url, text: String) {
         // Parse and publish errors
         match Parser::new(&text).parse_program() {
-            Ok(_) => {
-                self.client.publish_diagnostics(uri, vec![], None).await;
+            Ok(program) => {
+                // Run type checker
+                let tc = typecheck::check_program(&program);
+                let mut diags = Vec::new();
+                for e in tc.errors {
+                    // No spans yet; place at start of document for now
+                    let d = Diagnostic {
+                        range: Range::new(Position::new(0, 0), Position::new(0, 1)),
+                        severity: Some(DiagnosticSeverity::WARNING),
+                        code: None,
+                        code_description: None,
+                        source: Some("questicle-typecheck".into()),
+                        message: e.message,
+                        related_information: None,
+                        tags: None,
+                        data: None,
+                    };
+                    diags.push(d);
+                }
+                self.client.publish_diagnostics(uri, diags, None).await;
             }
             Err(e) => {
                 // crude mapping: only has line/col in our error types in most cases

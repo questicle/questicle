@@ -63,7 +63,7 @@ impl Interpreter {
 
     fn exec_stmt(&mut self, stmt: &Stmt) -> Result<Option<Value>, RuntimeError> {
         match stmt {
-            Stmt::Let { name, init } => {
+            Stmt::Let { name, ty: _, init } => {
                 let v = self.eval_expr(init)?;
                 self.env.borrow_mut().define(name.clone(), v);
                 Ok(None)
@@ -182,8 +182,9 @@ impl Interpreter {
                 }
                 self.call_function(c, a)?
             }
-            Fn { params, body } => Value::Function(Rc::new(Function::User {
+            Fn { params, ret, body } => Value::Function(Rc::new(Function::User {
                 params: params.clone(),
+                ret: ret.clone(),
                 body: body.clone(),
                 env: self.env.clone(),
             })),
@@ -228,12 +229,17 @@ impl Interpreter {
                 Function::Native { fun, .. } => {
                     fun(args, self.env.clone()).map_err(RuntimeError::Msg)
                 }
-                Function::User { params, body, env } => {
+                Function::User {
+                    params,
+                    ret: _,
+                    body,
+                    env,
+                } => {
                     let child = crate::env::Env::child_of(env);
                     for (i, p) in params.iter().enumerate() {
                         child
                             .borrow_mut()
-                            .define(p.clone(), args.get(i).cloned().unwrap_or(Value::Null));
+                            .define(p.0.clone(), args.get(i).cloned().unwrap_or(Value::Null));
                     }
                     let saved = self.env.clone();
                     self.env = child.clone();

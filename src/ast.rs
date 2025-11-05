@@ -9,6 +9,7 @@ pub struct Program {
 pub enum Stmt {
     Let {
         name: String,
+        ty: Option<TypeExpr>,
         init: Expr,
     },
     Expr(Expr),
@@ -54,7 +55,8 @@ pub enum Expr {
         args: Vec<Expr>,
     },
     Fn {
-        params: Vec<String>,
+        params: Vec<(String, Option<TypeExpr>)>,
+        ret: Option<TypeExpr>,
         body: Vec<Stmt>,
     },
     List(Vec<Expr>),
@@ -98,4 +100,16 @@ pub enum BinOp {
 pub enum UnOp {
     Neg,
     Not,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum TypeExpr {
+    Number,
+    String,
+    Bool,
+    Null,
+    List(Box<TypeExpr>),
+    Map(Box<TypeExpr>),
+    Func(Vec<TypeExpr>, Box<TypeExpr>),
+    Any,
 }

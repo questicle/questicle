@@ -53,22 +53,34 @@ impl Parser {
 
     fn let_decl(&mut self) -> Result<Stmt, ParseError> {
         let name = self.consume_ident("identifier")?;
+        // Optional type annotation: ": Type"
+        let ty = if self.check(&TokenKind::Colon) {
+            self.advance();
+            Some(self.parse_type()?)
+        } else {
+            None
+        };
         self.consume(TokenKind::Assign, "=")?;
         let init = self.expression()?;
         self.optional(TokenKind::Semicolon);
-        Ok(Stmt::Let { name, init })
+        Ok(Stmt::Let { name, ty, init })
     }
 
     fn fn_decl(&mut self) -> Result<Stmt, ParseError> {
         // function statement as: fn name(params){ body }
         let name = self.consume_ident("function name")?;
-        let func = self.function_literal()?;
+        let (params, ret, body) = self.function_literal()?;
+        // Optional: infer a function type if all param types and ret are present
+        let ty = if params.iter().all(|(_, t)| t.is_some()) && ret.is_some() {
+            let args: Vec<TypeExpr> = params.iter().map(|(_, t)| t.clone().unwrap()).collect();
+            Some(TypeExpr::Func(args, Box::new(ret.clone().unwrap())))
+        } else {
+            None
+        };
         Ok(Stmt::Let {
             name,
-            init: Expr::Fn {
-                params: func.0,
-                body: func.1,
-            },
+            ty,
+            init: Expr::Fn { params, ret, body },
         })
     }
 
@@ -391,27 +403,129 @@ impl Parser {
             return Ok(Expr::Map(props));
         }
         if self.matches(&[TokenKind::Fn]) {
-            let (params, body) = self.function_literal()?;
-            return Ok(Expr::Fn { params, body });
+            let (params, ret, body) = self.function_literal()?;
+            return Ok(Expr::Fn { params, ret, body });
         }
         Err(self.error_unexpected())
     }
 
-    fn function_literal(&mut self) -> Result<(Vec<String>, Vec<Stmt>), ParseError> {
+    fn function_literal(
+        &mut self,
+    ) -> Result<(Vec<(String, Option<TypeExpr>)>, Option<TypeExpr>, Vec<Stmt>), ParseError> {
         self.consume(TokenKind::LeftParen, "(")?;
-        let mut params = Vec::new();
+        let mut params: Vec<(String, Option<TypeExpr>)> = Vec::new();
         if !self.check(&TokenKind::RightParen) {
             loop {
-                params.push(self.consume_ident("parameter")?);
+                let pname = self.consume_ident("parameter name")?;
+                let pty = if self.check(&TokenKind::Colon) {
+                    self.advance();
+                    Some(self.parse_type()?)
+                } else {
+                    None
+                };
+                params.push((pname, pty));
                 if !self.matches(&[TokenKind::Comma]) {
                     break;
                 }
             }
         }
         self.consume(TokenKind::RightParen, ")")?;
+        // Optional return type: -> Type
+        let ret = if self.check(&TokenKind::Arrow) {
+            self.advance();
+            Some(self.parse_type()?)
+        } else {
+            None
+        };
         self.consume(TokenKind::LeftBrace, "{")?;
         let body = self.block()?;
-        Ok((params, body))
+        Ok((params, ret, body))
+    }
+
+    // Parse a type annotation.
+    // Grammar (simplified):
+    // Type :=
+    //    'number' | 'string' | 'bool' | 'null' | 'any'
+    //  | 'list' '<' Type '>'
+    //  | 'map' '<' Type '>'
+    //  | 'fn' '(' [Type (',' Type)*] ')' '->' Type
+    fn parse_type(&mut self) -> Result<TypeExpr, ParseError> {
+        // Primitive keywords or identifiers
+        if self.matches(&[TokenKind::Fn]) {
+            // fn (args) -> ret
+            self.consume(TokenKind::LeftParen, "(")?;
+            let mut args: Vec<TypeExpr> = Vec::new();
+            if !self.check(&TokenKind::RightParen) {
+                loop {
+                    args.push(self.parse_type()?);
+                    if !self.matches(&[TokenKind::Comma]) {
+                        break;
+                    }
+                }
+            }
+            self.consume(TokenKind::RightParen, ")")?;
+            self.consume(TokenKind::Arrow, "->")?;
+            let ret = self.parse_type()?;
+            return Ok(TypeExpr::Func(args, Box::new(ret)));
+        }
+
+        // Helper to match identifiers for list/map/primitive names
+        let ident_if = if let Some(Token {
+            kind: TokenKind::Identifier(s),
+            ..
+        }) = self.peek()
+        {
+            Some(s.clone())
+        } else {
+            None
+        };
+
+        if let Some(name) = ident_if {
+            match name.as_str() {
+                "number" => {
+                    self.advance();
+                    return Ok(TypeExpr::Number);
+                }
+                "string" => {
+                    self.advance();
+                    return Ok(TypeExpr::String);
+                }
+                "bool" => {
+                    self.advance();
+                    return Ok(TypeExpr::Bool);
+                }
+                "null" => {
+                    self.advance();
+                    return Ok(TypeExpr::Null);
+                }
+                "any" => {
+                    self.advance();
+                    return Ok(TypeExpr::Any);
+                }
+                "list" => {
+                    self.advance();
+                    self.consume(TokenKind::Less, "<")?;
+                    let inner = self.parse_type()?;
+                    self.consume(TokenKind::Greater, ">")?;
+                    return Ok(TypeExpr::List(Box::new(inner)));
+                }
+                "map" => {
+                    self.advance();
+                    self.consume(TokenKind::Less, "<")?;
+                    let inner = self.parse_type()?;
+                    self.consume(TokenKind::Greater, ">")?;
+                    return Ok(TypeExpr::Map(Box::new(inner)));
+                }
+                _ => {}
+            }
+        }
+
+        // Also allow using keywords 'Null' etc if lexer returns them as keywords
+        if self.matches(&[TokenKind::Null]) {
+            return Ok(TypeExpr::Null);
+        }
+
+        Err(self.error_expected("type"))
     }
 
     // Utilities
