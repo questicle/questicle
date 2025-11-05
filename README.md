@@ -38,7 +38,3 @@ cargo run -- examples/hello.qk
 ## Embedding
 
 Link the `questicle` crate and implement the `Host` trait to integrate with your engine. See `src/host.rs`.
-
-## License
-
-MIT or Apache-2.0
