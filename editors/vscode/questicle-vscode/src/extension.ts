@@ -27,7 +27,10 @@ export async function activate(context: vscode.ExtensionContext) {
     };
 
     const client = new LanguageClient('questicle', 'Questicle Language Server', serverOptions, clientOptions);
-    context.subscriptions.push(client.start());
+    // Dispose the client when the extension deactivates
+    context.subscriptions.push(client);
+    // Start the language client (don't push the Promise)
+    client.start();
 }
 
 export function deactivate(): Thenable<void> | undefined {
