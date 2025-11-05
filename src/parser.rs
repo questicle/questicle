@@ -94,7 +94,8 @@ impl Parser {
         if self.matches(&[TokenKind::For]) {
             return self.for_stmt();
         }
-        if self.matches(&[TokenKind::LeftBrace]) {
+        if self.check(&TokenKind::LeftBrace) && !self.looks_like_map_literal() {
+            self.advance();
             return Ok(Stmt::Block(self.block()?));
         }
         if self.matches(&[TokenKind::Return]) {
@@ -126,6 +127,22 @@ impl Parser {
         }
         self.consume(TokenKind::RightBrace, "}")?;
         Ok(stmts)
+    }
+    // Heuristic: Treat "{ ident : ..." as a map literal when at statement position.
+    // Otherwise, parse as a block.
+    fn looks_like_map_literal(&self) -> bool {
+        if !self.check(&TokenKind::LeftBrace) {
+            return false;
+        }
+        let i = self.pos + 1;
+        if i + 1 < self.tokens.len() {
+            match (&self.tokens[i].kind, &self.tokens[i + 1].kind) {
+                (TokenKind::Identifier(_), TokenKind::Colon) => true,
+                _ => false,
+            }
+        } else {
+            false
+        }
     }
 
     fn if_stmt(&mut self) -> Result<Stmt, ParseError> {

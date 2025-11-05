@@ -12,6 +12,10 @@ use thiserror::Error;
 pub enum RuntimeError {
     #[error("{0}")]
     Msg(String),
+    #[error("break")]
+    Break,
+    #[error("continue")]
+    Continue,
 }
 
 pub struct Interpreter {
@@ -88,8 +92,12 @@ impl Interpreter {
             }
             Stmt::While { cond, body } => {
                 while self.eval_expr(cond)?.truthy() {
-                    if let Some(v) = self.exec_stmt(body)? {
-                        return Ok(Some(v));
+                    match self.exec_stmt(body) {
+                        Ok(Some(v)) => return Ok(Some(v)), // return from inside loop
+                        Ok(None) => {}
+                        Err(RuntimeError::Break) => break,
+                        Err(RuntimeError::Continue) => continue,
+                        Err(e) => return Err(e),
                     }
                 }
                 Ok(None)
@@ -103,7 +111,21 @@ impl Interpreter {
                             child.borrow_mut().define(name.clone(), item);
                             let saved = self.env.clone();
                             self.env = child;
-                            let r = self.exec_stmt(body)?;
+                            let r = match self.exec_stmt(body) {
+                                Ok(v) => Ok(v),
+                                Err(RuntimeError::Break) => {
+                                    self.env = saved;
+                                    break;
+                                }
+                                Err(RuntimeError::Continue) => {
+                                    self.env = saved;
+                                    continue;
+                                }
+                                Err(e) => {
+                                    self.env = saved;
+                                    return Err(e);
+                                }
+                            }?;
                             self.env = saved;
                             if r.is_some() {
                                 return Ok(r);
@@ -121,7 +143,8 @@ impl Interpreter {
                 };
                 Ok(Some(val))
             }
-            Stmt::Break | Stmt::Continue => Ok(None), // simplified control flow
+            Stmt::Break => Err(RuntimeError::Break),
+            Stmt::Continue => Err(RuntimeError::Continue),
         }
     }
 
@@ -244,10 +267,26 @@ impl Interpreter {
                     let saved = self.env.clone();
                     self.env = child.clone();
                     let mut ret = Value::Null;
+                    let mut last_expr_value: Option<Value> = None;
                     for s in body {
-                        if let Some(v) = self.exec_stmt(s)? {
+                        match s {
+                            Stmt::Expr(e) => {
+                                // Capture value of expression statements for implicit return
+                                let v = self.eval_expr(e)?;
+                                last_expr_value = Some(v);
+                            }
+                            _ => {
+                                if let Some(v) = self.exec_stmt(s)? {
+                                    // Explicit return encountered inside
+                                    ret = v;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    if matches!(ret, Value::Null) {
+                        if let Some(v) = last_expr_value {
                             ret = v;
-                            break;
                         }
                     }
                     self.env = saved;
