@@ -1,0 +1,9 @@
+print("clock: " + clock());
+print("random: " + random());
+
+let m = { a: 1, b: 2 };
+print("len(m) = " + len(m));
+print("keys(m) = " + keys(m));
+
+let s = "hello";
+print("len(s) = " + len(s));

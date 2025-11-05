@@ -1,0 +1,7 @@
+fn counter() {
+  let n = 0;
+  fn inc() { n + 1 }
+}
+
+let c = counter();
+print("counter inc -> " + c());

@@ -1,0 +1,30 @@
+// Variables and arithmetic
+let a = 2;
+let b = 3;
+let c = a + b * 10; // 32
+print("c = " + c);
+
+// If / else
+if (c > 20) print("big"); else print("small");
+
+// While loop and decrement
+let n = 3;
+while (n > 0) { print("tick " + n); n = n - 1; }
+
+// For-in over a list
+for (i in [0,1,2]) { print("i = " + i); }
+
+// Lists and maps
+let nums = [1,2,3];
+let nums2 = push(nums, 4);
+print("nums = " + nums);
+print("nums2 = " + nums2);
+
+let hero = { name: "Aria", hp: 10, bag: ["potion"] };
+print("hero name: " + hero.name);
+print("bag size: " + len(hero.bag));
+
+// Functions and closures
+fn makeAdder(x) { return fn(y) { return x + y; }; }
+let add5 = makeAdder(5);
+print("add5(3) = " + add5(3));

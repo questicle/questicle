@@ -37,11 +37,16 @@ impl Parser {
     }
 
     fn declaration(&mut self) -> Result<Stmt, ParseError> {
-        if self.matches(&[TokenKind::Let]) {
+        if self.check(&TokenKind::Let) {
+            self.advance();
             return self.let_decl();
         }
-        if self.matches(&[TokenKind::Fn]) {
-            return self.fn_decl();
+        if self.check(&TokenKind::Fn) {
+            // Treat as declaration only if followed by an identifier
+            if self.peek_next_is_identifier() {
+                self.advance();
+                return self.fn_decl();
+            }
         }
         self.statement()
     }
@@ -438,6 +443,13 @@ impl Parser {
 
     fn match_kind(&self, kind: &TokenKind) -> bool {
         self.peek().map(|t| kind_eq(&t.kind, kind)).unwrap_or(false)
+    }
+
+    fn peek_next_is_identifier(&self) -> bool {
+        if self.pos + 1 >= self.tokens.len() {
+            return false;
+        }
+        matches!(self.tokens[self.pos + 1].kind, TokenKind::Identifier(_))
     }
 
     fn check(&self, kind: &TokenKind) -> bool {

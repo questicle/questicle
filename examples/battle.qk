@@ -1,0 +1,17 @@
+// Very simple turn-based battle
+let hero = { name: "Aria", hp: 12, atk: 4 };
+let slime = { name: "Slime", hp: 9, atk: 2 };
+
+fn alive(x) { x.hp > 0 }
+
+while (alive(hero) && alive(slime)) {
+  print(hero.name + " attacks!");
+  slime = { name: slime.name, hp: slime.hp - hero.atk, atk: slime.atk };
+  if (!alive(slime)) { print(slime.name + " is defeated!"); break; }
+
+  print(slime.name + " attacks!");
+  hero = { name: hero.name, hp: hero.hp - slime.atk, atk: hero.atk };
+  if (!alive(hero)) { print(hero.name + " falls!"); break; }
+}
+
+print("Battle over.");

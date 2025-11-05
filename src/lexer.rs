@@ -67,6 +67,10 @@ enum LexToken {
     Ident,
     #[regex(r"\n+")]
     Newline,
+    #[regex(r"//[^\n]*")]
+    LineComment,
+    #[regex(r"/\*([^*]|\*+[^*/])*\*+/")]
+    BlockComment,
 }
 
 pub struct Lexer<'a> {
@@ -156,6 +160,23 @@ impl<'a> Lexer<'a> {
                 Ok(LexToken::Newline) => {
                     line += 1;
                     col = 1;
+                    last_end = span.end;
+                    continue;
+                }
+                Ok(LexToken::LineComment) => {
+                    last_end = span.end;
+                    continue;
+                }
+                Ok(LexToken::BlockComment) => {
+                    let comm = &self.src[span.start..span.end];
+                    for ch in comm.chars() {
+                        if ch == '\n' {
+                            line += 1;
+                            col = 1;
+                        } else {
+                            col += 1;
+                        }
+                    }
                     last_end = span.end;
                     continue;
                 }

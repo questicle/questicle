@@ -1,0 +1,11 @@
+// Quest state machine
+let quest = { id: "cave_intro", state: "not_started" };
+
+fn start(q) { { id: q.id, state: "started" } }
+fn complete(q) { { id: q.id, state: "completed" } }
+
+print("state: " + quest.state);
+quest = start(quest);
+print("state: " + quest.state);
+quest = complete(quest);
+print("state: " + quest.state);

@@ -1,0 +1,8 @@
+let bag = ["potion", "herb"];
+print("bag: " + bag);
+
+bag = push(bag, "elixir");
+print("after push: " + bag);
+
+let last = pop(bag); // note: pop returns last element; original bag unchanged
+print("popped: " + last);

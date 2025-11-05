@@ -27,9 +27,21 @@ impl Interpreter {
     }
 
     pub fn eval(&mut self, program: Program) -> Result<Option<Value>, RuntimeError> {
-        let mut last = None;
+        let mut last: Option<Value> = None;
         for s in program.statements {
-            last = self.exec_stmt(&s)?;
+            match s {
+                Stmt::Expr(ref e) => {
+                    // Evaluate expression statements but do not affect control flow
+                    let v = self.eval_expr(e)?;
+                    last = Some(v);
+                }
+                _ => {
+                    // Other statements; only Return bubbles up as Some
+                    if let Some(v) = self.exec_stmt(&s)? {
+                        last = Some(v);
+                    }
+                }
+            }
         }
         Ok(last)
     }
@@ -57,8 +69,8 @@ impl Interpreter {
                 Ok(None)
             }
             Stmt::Expr(e) => {
-                let v = self.eval_expr(e)?;
-                Ok(Some(v))
+                let _ = self.eval_expr(e)?;
+                Ok(None)
             }
             Stmt::Block(b) => self.exec_block(b),
             Stmt::If {
