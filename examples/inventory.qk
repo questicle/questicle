@@ -1,8 +1,8 @@
-let bag = ["potion", "herb"];
+let bag: list<string> = ["potion", "herb"];
 print("bag: " + bag);
 
 bag = push(bag, "elixir");
 print("after push: " + bag);
 
-let last = pop(bag); // note: pop returns last element; original bag unchanged
+let last: any = pop(bag); // note: pop returns last element; original bag unchanged
 print("popped: " + last);

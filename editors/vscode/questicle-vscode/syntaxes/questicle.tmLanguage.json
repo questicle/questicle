@@ -14,6 +14,9 @@
             "include": "#keywords"
         },
         {
+            "include": "#types"
+        },
+        {
             "include": "#builtins"
         }
     ],
@@ -67,6 +70,18 @@
                 {
                     "name": "constant.language.questicle",
                     "match": "\\b(true|false|null)\\b"
+                }
+            ]
+        },
+        "types": {
+            "patterns": [
+                {
+                    "name": "support.type.questicle",
+                    "match": "\\b(number|string|bool|any|list|map)\\b"
+                },
+                {
+                    "name": "keyword.operator.arrow.questicle",
+                    "match": "->"
                 }
             ]
         },

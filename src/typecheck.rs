@@ -35,6 +35,7 @@ impl Type {
 #[derive(Debug, Clone)]
 pub struct TypeError {
     pub message: String,
+    pub subject: Option<String>,
 }
 
 #[derive(Default)]
@@ -118,9 +119,10 @@ fn check_stmt(
                 if !is_compatible(&t_init, &ann_t) {
                     errors.push(TypeError {
                         message: format!(
-                            "Type mismatch: variable '{}' initialized with {:?} but annotated as {:?}",
+                            "Type mismatch: variable '{}' initialized with {} but annotated as {}",
                             name, t_init, ann_t
                         ),
+                        subject: Some(name.clone()),
                     });
                 }
                 env.vars.insert(name.clone(), ann_t);
@@ -147,7 +149,8 @@ fn check_stmt(
             let t = infer_expr(cond, env, errors);
             if !is_compatible(&t, &Type::Bool) {
                 errors.push(TypeError {
-                    message: format!("If condition must be bool, got {:?}", t),
+                    message: format!("If condition must be bool, got {}", t),
+                    subject: None,
                 });
             }
             check_stmt(then_branch, env, expected_ret, errors);
@@ -159,7 +162,8 @@ fn check_stmt(
             let t = infer_expr(cond, env, errors);
             if !is_compatible(&t, &Type::Bool) {
                 errors.push(TypeError {
-                    message: format!("While condition must be bool, got {:?}", t),
+                    message: format!("While condition must be bool, got {}", t),
+                    subject: None,
                 });
             }
             check_stmt(body, env, expected_ret, errors);
@@ -175,7 +179,8 @@ fn check_stmt(
                     check_stmt(body, &mut child, expected_ret, errors);
                 }
                 _ => errors.push(TypeError {
-                    message: format!("For expects list, got {:?}", it),
+                    message: format!("For expects list, got {}", it),
+                    subject: Some(name.clone()),
                 }),
             }
         }
@@ -185,17 +190,16 @@ fn check_stmt(
                 if let Some(exp) = expected_ret {
                     if !is_compatible(&t, exp) {
                         errors.push(TypeError {
-                            message: format!(
-                                "Return type {:?} does not match expected {:?}",
-                                t, exp
-                            ),
+                            message: format!("Return type {} does not match expected {}", t, exp),
+                            subject: None,
                         });
                     }
                 }
             } else if let Some(exp) = expected_ret {
                 if !is_compatible(&Type::Null, exp) {
                     errors.push(TypeError {
-                        message: format!("Return type null does not match expected {:?}", exp),
+                        message: format!("Return type null does not match expected {}", exp),
+                        subject: None,
                     });
                 }
             }
@@ -217,9 +221,10 @@ fn infer_expr(expr: &Expr, env: &mut TypeEnv, errors: &mut Vec<TypeError>) -> Ty
                 if !is_compatible(&vt, existing) {
                     errors.push(TypeError {
                         message: format!(
-                            "Cannot assign {:?} to variable '{}' of type {:?}",
+                            "Cannot assign {} to variable '{}' of type {}",
                             vt, name, existing
                         ),
+                        subject: Some(name.clone()),
                     });
                 }
             }
@@ -241,7 +246,8 @@ fn infer_expr(expr: &Expr, env: &mut TypeEnv, errors: &mut Vec<TypeError>) -> Ty
                         }
                     } else {
                         errors.push(TypeError {
-                            message: format!("Invalid types for +: {:?} and {:?}", l, r),
+                            message: format!("Invalid types for +: {} and {}", l, r),
+                            subject: None,
                         });
                         Type::Any
                     }
@@ -251,7 +257,8 @@ fn infer_expr(expr: &Expr, env: &mut TypeEnv, errors: &mut Vec<TypeError>) -> Ty
                         Type::Number
                     } else {
                         errors.push(TypeError {
-                            message: format!("Number operands required, got {:?} and {:?}", l, r),
+                            message: format!("Number operands required, got {} and {}", l, r),
+                            subject: None,
                         });
                         Type::Any
                     }
@@ -263,9 +270,10 @@ fn infer_expr(expr: &Expr, env: &mut TypeEnv, errors: &mut Vec<TypeError>) -> Ty
                     } else {
                         errors.push(TypeError {
                             message: format!(
-                                "Number operands required for comparison, got {:?} and {:?}",
+                                "Number operands required for comparison, got {} and {}",
                                 l, r
                             ),
+                            subject: None,
                         });
                         Type::Any
                     }
@@ -274,7 +282,13 @@ fn infer_expr(expr: &Expr, env: &mut TypeEnv, errors: &mut Vec<TypeError>) -> Ty
                     if l == Type::Bool && r == Type::Bool {
                         Type::Bool
                     } else {
-                        errors.push(TypeError { message: format!("Boolean operands required for logical operation, got {:?} and {:?}", l, r) });
+                        errors.push(TypeError {
+                            message: format!(
+                                "Boolean operands required for logical operation, got {} and {}",
+                                l, r
+                            ),
+                            subject: None,
+                        });
                         Type::Any
                     }
                 }
@@ -288,7 +302,8 @@ fn infer_expr(expr: &Expr, env: &mut TypeEnv, errors: &mut Vec<TypeError>) -> Ty
                         Type::Number
                     } else {
                         errors.push(TypeError {
-                            message: format!("Unary - expects number, got {:?}", t),
+                            message: format!("Unary - expects number, got {}", t),
+                            subject: None,
                         });
                         Type::Any
                     }
@@ -298,7 +313,8 @@ fn infer_expr(expr: &Expr, env: &mut TypeEnv, errors: &mut Vec<TypeError>) -> Ty
                         Type::Bool
                     } else {
                         errors.push(TypeError {
-                            message: format!("Unary ! expects bool, got {:?}", t),
+                            message: format!("Unary ! expects bool, got {}", t),
+                            subject: None,
                         });
                         Type::Any
                     }
@@ -317,11 +333,20 @@ fn infer_expr(expr: &Expr, env: &mut TypeEnv, errors: &mut Vec<TypeError>) -> Ty
                                 params.len(),
                                 arg_ts.len()
                             ),
+                            subject: None,
                         });
                     } else {
                         for (i, (p, a)) in params.iter().zip(arg_ts.iter()).enumerate() {
                             if !is_compatible(a, p) {
-                                errors.push(TypeError { message: format!("Argument {} type {:?} incompatible with parameter type {:?}", i + 1, a, p) });
+                                errors.push(TypeError {
+                                    message: format!(
+                                        "Argument {} type {} incompatible with parameter type {}",
+                                        i + 1,
+                                        a,
+                                        p
+                                    ),
+                                    subject: None,
+                                });
                             }
                         }
                     }
@@ -379,7 +404,8 @@ fn infer_expr(expr: &Expr, env: &mut TypeEnv, errors: &mut Vec<TypeError>) -> Ty
                 (Type::Map(inner), Type::String) => *inner,
                 (t, i) => {
                     errors.push(TypeError {
-                        message: format!("Invalid index types: target {:?} indexed by {:?}", t, i),
+                        message: format!("Invalid index types: target {} indexed by {}", t, i),
+                        subject: None,
                     });
                     Type::Any
                 }
@@ -414,5 +440,24 @@ fn is_compatible(a: &Type, b: &Type) -> bool {
         (Type::Map(x), Type::Map(y)) => is_compatible(x, y),
         (Type::Null, _) => true, // allow null to flow anywhere
         _ => false,
+    }
+}
+
+use std::fmt::{Display, Formatter};
+impl Display for Type {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Type::Number => write!(f, "number"),
+            Type::String => write!(f, "string"),
+            Type::Bool => write!(f, "bool"),
+            Type::Null => write!(f, "null"),
+            Type::Any => write!(f, "any"),
+            Type::List(i) => write!(f, "list<{}>", i),
+            Type::Map(i) => write!(f, "map<{}>", i),
+            Type::Func(args, ret) => {
+                let parts: Vec<String> = args.iter().map(|a| a.to_string()).collect();
+                write!(f, "fn({}) -> {}", parts.join(", "), ret)
+            }
+        }
     }
 }

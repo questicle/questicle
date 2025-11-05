@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tower_lsp::jsonrpc::Result;
+use tower_lsp::jsonrpc;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 
@@ -14,7 +14,7 @@ struct Backend {
 
 #[tower_lsp::async_trait]
 impl LanguageServer for Backend {
-    async fn initialize(&self, _: InitializeParams) -> Result<InitializeResult> {
+    async fn initialize(&self, _: InitializeParams) -> jsonrpc::Result<InitializeResult> {
         let caps = ServerCapabilities {
             text_document_sync: Some(TextDocumentSyncCapability::Kind(TextDocumentSyncKind::FULL)),
             completion_provider: Some(CompletionOptions {
@@ -30,12 +30,44 @@ impl LanguageServer for Backend {
             hover_provider: Some(HoverProviderCapability::Simple(true)),
             document_symbol_provider: Some(OneOf::Left(true)),
             document_formatting_provider: Some(OneOf::Left(true)),
+            signature_help_provider: Some(SignatureHelpOptions {
+                trigger_characters: Some(vec!["(".into(), ",".into()]),
+                retrigger_characters: None,
+                work_done_progress_options: Default::default(),
+            }),
+            definition_provider: Some(OneOf::Left(true)),
             ..Default::default()
         };
         Ok(InitializeResult {
             capabilities: caps,
             server_info: None,
         })
+    }
+    async fn goto_definition(
+        &self,
+        params: GotoDefinitionParams,
+    ) -> jsonrpc::Result<Option<GotoDefinitionResponse>> {
+        let uri = params.text_document_position_params.text_document.uri;
+        let pos = params.text_document_position_params.position;
+        let docs = self.docs.read().await;
+        if let Some(text) = docs.get(&uri) {
+            if let Some(line) = text.lines().nth(pos.line as usize) {
+                let word = word_at(line, pos.character as usize);
+                if !word.is_empty() {
+                    if let Some((l, s, e)) = find_decl_of(text, &word) {
+                        let loc = Location {
+                            uri: uri.clone(),
+                            range: Range::new(
+                                Position::new(l as u32, s as u32),
+                                Position::new(l as u32, e as u32),
+                            ),
+                        };
+                        return Ok(Some(GotoDefinitionResponse::Scalar(loc)));
+                    }
+                }
+            }
+        }
+        Ok(None)
     }
 
     async fn initialized(&self, _: InitializedParams) {
@@ -44,7 +76,7 @@ impl LanguageServer for Backend {
             .await;
     }
 
-    async fn shutdown(&self) -> Result<()> {
+    async fn shutdown(&self) -> jsonrpc::Result<()> {
         Ok(())
     }
 
@@ -64,7 +96,10 @@ impl LanguageServer for Backend {
         }
     }
 
-    async fn completion(&self, _params: CompletionParams) -> Result<Option<CompletionResponse>> {
+    async fn completion(
+        &self,
+        _params: CompletionParams,
+    ) -> jsonrpc::Result<Option<CompletionResponse>> {
         let mut items = Vec::new();
         for kw in [
             "let", "fn", "if", "else", "while", "for", "in", "return", "true", "false", "null",
@@ -94,7 +129,7 @@ impl LanguageServer for Backend {
         Ok(Some(CompletionResponse::Array(items)))
     }
 
-    async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {
+    async fn hover(&self, params: HoverParams) -> jsonrpc::Result<Option<Hover>> {
         // Very simple hover: show token under cursor if it's a keyword/builtin
         let uri = params.text_document_position_params.text_document.uri;
         let pos = params.text_document_position_params.position;
@@ -111,6 +146,22 @@ impl LanguageServer for Backend {
                         range: None,
                     }));
                 }
+                // Try type info
+                if !word.is_empty() {
+                    if let Ok(program) = Parser::new(text).parse_program() {
+                        let tc = questicle::typecheck::check_program(&program);
+                        if let Some(t) = tc.env.vars.get(&word) {
+                            let contents = HoverContents::Scalar(MarkedString::String(format!(
+                                "{}: {}",
+                                word, t
+                            )));
+                            return Ok(Some(Hover {
+                                contents,
+                                range: None,
+                            }));
+                        }
+                    }
+                }
             }
         }
         Ok(None)
@@ -119,7 +170,7 @@ impl LanguageServer for Backend {
     async fn document_symbol(
         &self,
         params: DocumentSymbolParams,
-    ) -> Result<Option<DocumentSymbolResponse>> {
+    ) -> jsonrpc::Result<Option<DocumentSymbolResponse>> {
         let uri = params.text_document.uri;
         let docs = self.docs.read().await;
         if let Some(text) = docs.get(&uri) {
@@ -174,7 +225,10 @@ impl LanguageServer for Backend {
         Ok(None)
     }
 
-    async fn formatting(&self, params: DocumentFormattingParams) -> Result<Option<Vec<TextEdit>>> {
+    async fn formatting(
+        &self,
+        params: DocumentFormattingParams,
+    ) -> jsonrpc::Result<Option<Vec<TextEdit>>> {
         let uri = params.text_document.uri;
         let docs = self.docs.read().await;
         if let Some(text) = docs.get(&uri) {
@@ -189,6 +243,67 @@ impl LanguageServer for Backend {
         }
         Ok(Some(vec![]))
     }
+
+    async fn signature_help(
+        &self,
+        params: SignatureHelpParams,
+    ) -> jsonrpc::Result<Option<SignatureHelp>> {
+        let uri = params.text_document_position_params.text_document.uri;
+        let pos = params.text_document_position_params.position;
+        let docs = self.docs.read().await;
+        if let Some(text) = docs.get(&uri) {
+            // Extract the line up to cursor and find a function-like token and arg index by counting commas
+            let lines: Vec<&str> = text.lines().collect();
+            if (pos.line as usize) < lines.len() {
+                let line_str = lines[pos.line as usize];
+                let upto_len = std::cmp::min(pos.character as usize, line_str.len());
+                let upto = &line_str[..upto_len];
+                if let Some((fname, arg_index)) = extract_call_context(upto) {
+                    if let Ok(program) = Parser::new(text).parse_program() {
+                        let tc = questicle::typecheck::check_program(&program);
+                        if let Some(t) = tc.env.vars.get(&fname) {
+                            if let questicle::typecheck::Type::Func(params, ret) = t {
+                                let label = format!(
+                                    "{}({}) -> {}",
+                                    fname,
+                                    params
+                                        .iter()
+                                        .map(|p| p.to_string())
+                                        .collect::<Vec<_>>()
+                                        .join(", "),
+                                    ret
+                                );
+                                let parameters: Vec<ParameterInformation> = params
+                                    .iter()
+                                    .enumerate()
+                                    .map(|(i, p)| ParameterInformation {
+                                        label: ParameterLabel::Simple(format!(
+                                            "arg{}: {}",
+                                            i + 1,
+                                            p
+                                        )),
+                                        documentation: None,
+                                    })
+                                    .collect();
+                                let sig = SignatureInformation {
+                                    label,
+                                    documentation: None,
+                                    parameters: Some(parameters),
+                                    active_parameter: Some(arg_index as u32),
+                                };
+                                return Ok(Some(SignatureHelp {
+                                    signatures: vec![sig],
+                                    active_signature: Some(0),
+                                    active_parameter: Some(arg_index as u32),
+                                }));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Ok(None)
+    }
 }
 
 impl Backend {
@@ -200,9 +315,21 @@ impl Backend {
                 let tc = typecheck::check_program(&program);
                 let mut diags = Vec::new();
                 for e in tc.errors {
-                    // No spans yet; place at start of document for now
+                    // Heuristic: if we know the subject (var/function name), find its first occurrence
+                    let range = if let Some(ref name) = e.subject {
+                        if let Some((line, start, end)) = find_first_occurrence(&text, name) {
+                            Range::new(
+                                Position::new(line as u32, start as u32),
+                                Position::new(line as u32, end as u32),
+                            )
+                        } else {
+                            Range::new(Position::new(0, 0), Position::new(0, 1))
+                        }
+                    } else {
+                        Range::new(Position::new(0, 0), Position::new(0, 1))
+                    };
                     let d = Diagnostic {
-                        range: Range::new(Position::new(0, 0), Position::new(0, 1)),
+                        range,
                         severity: Some(DiagnosticSeverity::WARNING),
                         code: None,
                         code_description: None,
@@ -272,6 +399,43 @@ fn word_at(line: &str, col: usize) -> String {
     chars[start..end].iter().collect()
 }
 
+fn find_first_occurrence(text: &str, needle: &str) -> Option<(usize, usize, usize)> {
+    for (i, line) in text.lines().enumerate() {
+        if let Some(pos) = line.find(needle) {
+            return Some((i, pos, pos + needle.len()));
+        }
+    }
+    None
+}
+
+fn find_decl_of(text: &str, name: &str) -> Option<(usize, usize, usize)> {
+    for (i, line) in text.lines().enumerate() {
+        let trimmed = line.trim_start();
+        if trimmed.starts_with("let ") {
+            let after = &trimmed[4..];
+            let ident: String = after
+                .chars()
+                .take_while(|c| c.is_alphanumeric() || *c == '_')
+                .collect();
+            if ident == name {
+                let start = line.find(&ident)?;
+                return Some((i, start, start + ident.len()));
+            }
+        } else if trimmed.starts_with("fn ") {
+            let after = &trimmed[3..];
+            let ident: String = after
+                .chars()
+                .take_while(|c| c.is_alphanumeric() || *c == '_')
+                .collect();
+            if ident == name {
+                let start = line.find(&ident)?;
+                return Some((i, start, start + ident.len()));
+            }
+        }
+    }
+    None
+}
+
 fn builtin_doc(name: &str) -> Option<&'static str> {
     match name {
         "print" => Some("print(...): prints values to console"),
@@ -310,4 +474,53 @@ async fn main() {
         docs: Arc::new(RwLock::new(HashMap::new())),
     });
     Server::new(stdin, stdout, socket).serve(service).await;
+}
+
+// Very simple call context extractor: finds 'name(' and counts commas until current position.
+fn extract_call_context(prefix: &str) -> Option<(String, usize)> {
+    // Find last '(' to determine call start
+    let bytes = prefix.as_bytes();
+    let mut paren_idx: Option<usize> = None;
+    for (i, &b) in bytes.iter().enumerate().rev() {
+        if b == b'(' {
+            paren_idx = Some(i);
+            break;
+        }
+        if b == b')' {
+            // We are inside a closed paren; bail
+            return None;
+        }
+    }
+    let start = paren_idx?;
+    // Extract function name before '('
+    let name_slice = &prefix[..start].trim_end();
+    let fname: String = name_slice
+        .chars()
+        .rev()
+        .take_while(|c| c.is_alphanumeric() || *c == '_')
+        .collect::<String>()
+        .chars()
+        .rev()
+        .collect();
+    if fname.is_empty() {
+        return None;
+    }
+    // Count commas after '('
+    let mut depth = 0usize;
+    let mut commas = 0usize;
+    for &b in &bytes[start + 1..] {
+        match b {
+            b'(' => depth += 1,
+            b')' => {
+                if depth == 0 {
+                    break;
+                } else {
+                    depth -= 1;
+                }
+            }
+            b',' if depth == 0 => commas += 1,
+            _ => {}
+        }
+    }
+    Some((fname, commas))
 }

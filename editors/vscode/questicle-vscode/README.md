@@ -1,8 +1,9 @@
 # Questicle VS Code Extension
 
-This extension provides basic language support for Questicle:
-- Language Server (completion, hover, diagnostics, document symbols)
-- Syntax highlighting
+This extension provides advanced language support for Questicle:
+- Language Server: completion, hover (typed), signature help, diagnostics (parse + type), document symbols, formatting
+- Syntax highlighting with type keywords and arrow operator
+- Command: Questicle: Run Current File (Ctrl+Shift+R)
 
 ## Install locally
 
@@ -30,4 +31,6 @@ vsce package
 code --install-extension questicle-vscode-0.0.1.vsix
 ```
 
-The extension looks for the `qk-lsp` binary in `target/debug/qk-lsp` relative to the workspace root. If you want to override the path, we can add a setting later.
+The extension looks for the `qk-lsp` binary in `target/debug/qk-lsp` relative to the workspace root. You can override using the setting `questicle.serverPath`.
+
+Format Document works out-of-the-box via the LSP. Use the Run command to execute the current .qk file in a terminal.

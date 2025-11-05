@@ -31,6 +31,22 @@ export async function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(client);
     // Start the language client (don't push the Promise)
     client.start();
+
+    // Register Run Current File command
+    const runCmd = vscode.commands.registerCommand('questicle.runFile', async () => {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) { return; }
+        const doc = editor.document;
+        if (doc.languageId !== 'questicle') { return; }
+        await doc.save();
+        const root = workspaceFolders?.[0]?.uri.fsPath ?? process.cwd();
+        const qkPath = process.platform === 'win32' ? path.join(root, 'target', 'debug', 'qk.exe') : path.join(root, 'target', 'debug', 'qk');
+        const cmd = fs.existsSync(qkPath) ? qkPath : (process.platform === 'win32' ? 'qk.exe' : 'qk');
+        const terminal = vscode.window.createTerminal({ name: 'Questicle', cwd: root });
+        terminal.show(true);
+        terminal.sendText(`${cmd} ${doc.uri.fsPath}`);
+    });
+    context.subscriptions.push(runCmd);
 }
 
 export function deactivate(): Thenable<void> | undefined {

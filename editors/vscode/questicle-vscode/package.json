@@ -12,6 +12,19 @@
     ],
     "activationEvents": [],
     "contributes": {
+        "commands": [
+            {
+                "command": "questicle.runFile",
+                "title": "Questicle: Run Current File"
+            }
+        ],
+        "keybindings": [
+            {
+                "command": "questicle.runFile",
+                "key": "ctrl+shift+r",
+                "when": "editorLangId == questicle"
+            }
+        ],
         "configuration": {
             "type": "object",
             "title": "Questicle",
