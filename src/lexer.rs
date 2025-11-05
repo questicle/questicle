@@ -192,6 +192,53 @@ impl<'a> Lexer<'a> {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::token::TokenKind;
+
+    #[test]
+    fn lex_basic_and_skip_comments() {
+        let src = "let x = 1 + 2; // comment\n/* block */ let y=3;";
+        let toks = Lexer::new(src).lex();
+        // We should not see comment tokens; check key sequence presence
+        let kinds: Vec<_> = toks
+            .iter()
+            .map(|t| std::mem::discriminant(&t.kind))
+            .collect();
+        // Expect at least these tokens in order: Let, Identifier, Assign, Number, Plus, Number, Semicolon, Let, Identifier, Assign, Number, Semicolon
+        let seq = vec![
+            std::mem::discriminant(&TokenKind::Let),
+            std::mem::discriminant(&TokenKind::Identifier(String::new())),
+            std::mem::discriminant(&TokenKind::Assign),
+            std::mem::discriminant(&TokenKind::Number(0.0)),
+            std::mem::discriminant(&TokenKind::Plus),
+            std::mem::discriminant(&TokenKind::Number(0.0)),
+            std::mem::discriminant(&TokenKind::Semicolon),
+            std::mem::discriminant(&TokenKind::Let),
+            std::mem::discriminant(&TokenKind::Identifier(String::new())),
+            std::mem::discriminant(&TokenKind::Assign),
+            std::mem::discriminant(&TokenKind::Number(0.0)),
+            std::mem::discriminant(&TokenKind::Semicolon),
+        ];
+        // Find subsequence
+        let mut j = 0usize;
+        for k in kinds {
+            if k == seq[j] {
+                j += 1;
+                if j == seq.len() {
+                    break;
+                }
+            }
+        }
+        assert_eq!(
+            j,
+            seq.len(),
+            "lexer did not produce expected token sequence"
+        );
+    }
+}
+
 fn unescape(s: &str) -> String {
     let mut out = String::new();
     let mut chars = s.chars();
