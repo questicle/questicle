@@ -3,7 +3,7 @@ name = "questicle"
 version = "0.1.0"
 edition = "2021"
 description = "Questicle - a general purpose scripting language for games"
-license = "MIT OR Apache-2.0"
+license = "MIT"
 authors = ["asta <you@example.com>"]
 repository = ""
 

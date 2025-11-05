@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Questicle
 pub mod ast;
 pub mod env;
 pub mod eval;

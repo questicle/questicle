@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025 Questicle
 use questicle::{Host, Interpreter, Parser};
 use std::{fs, path::PathBuf};
 
