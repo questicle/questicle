@@ -6,9 +6,14 @@
     "publisher": "questicle",
     "repository": {
         "type": "git",
-        "url": "https://github.com/questicle/questicle-vscode"
+        "url": "https://github.com/questicle/questicle.git",
+        "directory": "editors/vscode/questicle-vscode"
     },
     "license": "MIT",
+    "bugs": {
+        "url": "https://github.com/questicle/questicle/issues"
+    },
+    "homepage": "https://github.com/questicle/questicle/tree/main/editors/vscode/questicle-vscode",
     "engines": {
         "vscode": "^1.84.0"
     },

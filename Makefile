@@ -57,7 +57,7 @@ build-ext:
 .PHONY: package-ext
 package-ext: build-ext
 	@echo "Packaging VS Code extension using @vscode/vsce..."
-	cd $(EXT_DIR) && $(NPX) --yes @vscode/vsce package --allow-missing-repository -o "$(abspath $(VSIX))"
+	cd $(EXT_DIR) && $(NPX) --yes @vscode/vsce package -o "$(abspath $(VSIX))"
 	@echo "VSIX created at: $(VSIX)"
 
 .PHONY: install
