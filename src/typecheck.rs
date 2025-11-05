@@ -236,21 +236,12 @@ fn infer_expr(expr: &Expr, env: &mut TypeEnv, errors: &mut Vec<TypeError>) -> Ty
             let r = infer_expr(right, env, errors);
             match op {
                 BinOp::Add => {
-                    if (l == Type::Number && r == Type::Number)
-                        || (l == Type::String && r == Type::String)
-                    {
-                        if l == Type::Number {
-                            Type::Number
-                        } else {
-                            Type::String
-                        }
-                    } else {
-                        errors.push(TypeError {
-                            message: format!("Invalid types for +: {} and {}", l, r),
-                            subject: None,
-                        });
-                        Type::Any
-                    }
+                        // Runtime allows number+number => number, string+string => string,
+                        // and string+Any or Any+string => string (stringification).
+                        if l == Type::Number && r == Type::Number { Type::Number }
+                        else if l == Type::String && r == Type::String { Type::String }
+                        else if l == Type::String || r == Type::String { Type::String }
+                        else { errors.push(TypeError { message: format!("Invalid types for +: {} and {}", l, r), subject: None }); Type::Any }
                 }
                 BinOp::Sub | BinOp::Mul | BinOp::Div | BinOp::Mod => {
                     if l == Type::Number && r == Type::Number {
@@ -298,13 +289,8 @@ fn infer_expr(expr: &Expr, env: &mut TypeEnv, errors: &mut Vec<TypeError>) -> Ty
             let t = infer_expr(expr, env, errors);
             match op {
                 UnOp::Neg => {
-                    if t == Type::Number {
-                        Type::Number
-                    } else {
-                        errors.push(TypeError {
-                            message: format!("Unary - expects number, got {}", t),
-                            subject: None,
-                        });
+                    if t == Type::Number { Type::Number } else {
+                        errors.push(TypeError { message: format!("Unary - expects number, got {}", t), subject: None });
                         Type::Any
                     }
                 }
@@ -312,10 +298,7 @@ fn infer_expr(expr: &Expr, env: &mut TypeEnv, errors: &mut Vec<TypeError>) -> Ty
                     if t == Type::Bool {
                         Type::Bool
                     } else {
-                        errors.push(TypeError {
-                            message: format!("Unary ! expects bool, got {}", t),
-                            subject: None,
-                        });
+                        errors.push(TypeError { message: format!("Unary ! expects bool, got {}", t), subject: None });
                         Type::Any
                     }
                 }
@@ -412,9 +395,11 @@ fn infer_expr(expr: &Expr, env: &mut TypeEnv, errors: &mut Vec<TypeError>) -> Ty
             }
         }
         Expr::Field { target, name: _ } => {
-            let _tt = infer_expr(target, env, errors);
-            // Dynamic maps only; unknown type for field
-            Type::Any
+            let tt = infer_expr(target, env, errors);
+            match tt {
+                Type::Map(inner) => *inner,
+                _ => Type::Any,
+            }
         }
     }
 }
