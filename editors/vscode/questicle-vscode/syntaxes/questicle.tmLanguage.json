@@ -1,0 +1,82 @@
+{
+    "scopeName": "source.questicle",
+    "patterns": [
+        {
+            "include": "#comments"
+        },
+        {
+            "include": "#strings"
+        },
+        {
+            "include": "#numbers"
+        },
+        {
+            "include": "#keywords"
+        },
+        {
+            "include": "#builtins"
+        }
+    ],
+    "repository": {
+        "comments": {
+            "patterns": [
+                {
+                    "name": "comment.line.double-slash.questicle",
+                    "match": "//.*$"
+                },
+                {
+                    "name": "comment.block.questicle",
+                    "begin": "/\\*",
+                    "end": "\\*/"
+                }
+            ]
+        },
+        "strings": {
+            "patterns": [
+                {
+                    "name": "string.quoted.double.questicle",
+                    "begin": "\"",
+                    "end": "\"",
+                    "patterns": [
+                        {
+                            "name": "constant.character.escape.questicle",
+                            "match": "\\\\."
+                        }
+                    ]
+                }
+            ]
+        },
+        "numbers": {
+            "patterns": [
+                {
+                    "name": "constant.numeric.questicle",
+                    "match": "\\b[0-9]+(\\.[0-9]+)?\\b"
+                }
+            ]
+        },
+        "keywords": {
+            "patterns": [
+                {
+                    "name": "keyword.control.questicle",
+                    "match": "\\b(if|else|while|for|in|return)\\b"
+                },
+                {
+                    "name": "storage.type.questicle",
+                    "match": "\\b(fn|let)\\b"
+                },
+                {
+                    "name": "constant.language.questicle",
+                    "match": "\\b(true|false|null)\\b"
+                }
+            ]
+        },
+        "builtins": {
+            "patterns": [
+                {
+                    "name": "support.function.questicle",
+                    "match": "\\b(print|clock|random|len|keys|push|pop|on|emit|host)\\b"
+                }
+            ]
+        }
+    }
+}

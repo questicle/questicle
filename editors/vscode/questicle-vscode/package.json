@@ -1,0 +1,63 @@
+{
+    "name": "questicle-vscode",
+    "displayName": "Questicle",
+    "description": "VS Code support for the Questicle scripting language (LSP + syntax)",
+    "version": "0.0.1",
+    "publisher": "questicle",
+    "engines": {
+        "vscode": "^1.84.0"
+    },
+    "categories": [
+        "Programming Languages"
+    ],
+    "activationEvents": [],
+    "contributes": {
+        "configuration": {
+            "type": "object",
+            "title": "Questicle",
+            "properties": {
+                "questicle.serverPath": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Path to qk-lsp binary. Leave empty to use workspace target/debug or PATH."
+                }
+            }
+        },
+        "languages": [
+            {
+                "id": "questicle",
+                "aliases": [
+                    "Questicle",
+                    "questicle",
+                    "qk"
+                ],
+                "extensions": [
+                    ".qk"
+                ],
+                "configuration": "./language-configuration.json"
+            }
+        ],
+        "grammars": [
+            {
+                "language": "questicle",
+                "scopeName": "source.questicle",
+                "path": "./syntaxes/questicle.tmLanguage.json"
+            }
+        ]
+    },
+    "main": "./out/extension.js",
+    "scripts": {
+        "vscode:prepublish": "npm run compile",
+        "compile": "tsc -p ./",
+        "watch": "tsc -w -p ./",
+        "lint": "echo 'no lint configured'"
+    },
+    "devDependencies": {
+        "@types/vscode": "^1.84.0",
+        "typescript": "^5.6.3",
+        "@types/node": "^20.14.8"
+    },
+    "dependencies": {
+        "vscode-languageclient": "^9.0.1"
+    }
+}
