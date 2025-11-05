@@ -1,0 +1,9 @@
+# Exclude sources and build cruft from VSIX
+src/
+node_modules/
+**/*.map
+**/*.ts
+**/.DS_Store
+**/.git*
+**/target/
+**/tests/

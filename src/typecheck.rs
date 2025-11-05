@@ -238,12 +238,21 @@ fn infer_expr(expr: &Expr, env: &mut TypeEnv, errors: &mut Vec<TypeError>) -> Ty
             let r = infer_expr(right, env, errors);
             match op {
                 BinOp::Add => {
-                        // Runtime allows number+number => number, string+string => string,
-                        // and string+Any or Any+string => string (stringification).
-                        if l == Type::Number && r == Type::Number { Type::Number }
-                        else if l == Type::String && r == Type::String { Type::String }
-                        else if l == Type::String || r == Type::String { Type::String }
-                        else { errors.push(TypeError { message: format!("Invalid types for +: {} and {}", l, r), subject: None }); Type::Any }
+                    // Runtime allows number+number => number, string+string => string,
+                    // and string+Any or Any+string => string (stringification).
+                    if l == Type::Number && r == Type::Number {
+                        Type::Number
+                    } else if l == Type::String && r == Type::String {
+                        Type::String
+                    } else if l == Type::String || r == Type::String {
+                        Type::String
+                    } else {
+                        errors.push(TypeError {
+                            message: format!("Invalid types for +: {} and {}", l, r),
+                            subject: None,
+                        });
+                        Type::Any
+                    }
                 }
                 BinOp::Sub | BinOp::Mul | BinOp::Div | BinOp::Mod => {
                     if l == Type::Number && r == Type::Number {
@@ -259,10 +268,17 @@ fn infer_expr(expr: &Expr, env: &mut TypeEnv, errors: &mut Vec<TypeError>) -> Ty
                 BinOp::Eq | BinOp::Ne => Type::Bool,
                 BinOp::Lt | BinOp::Le | BinOp::Gt | BinOp::Ge => {
                     // If either side is Any, assume it's okay at compile time; runtime will decide
-                    if l == Type::Any || r == Type::Any || (l == Type::Number && r == Type::Number) {
+                    if l == Type::Any || r == Type::Any || (l == Type::Number && r == Type::Number)
+                    {
                         Type::Bool
                     } else {
-                        errors.push(TypeError { message: format!("Number operands required for comparison, got {} and {}", l, r), subject: None });
+                        errors.push(TypeError {
+                            message: format!(
+                                "Number operands required for comparison, got {} and {}",
+                                l, r
+                            ),
+                            subject: None,
+                        });
                         Type::Bool
                     }
                 }
@@ -271,7 +287,13 @@ fn infer_expr(expr: &Expr, env: &mut TypeEnv, errors: &mut Vec<TypeError>) -> Ty
                     if l == Type::Any || r == Type::Any || (l == Type::Bool && r == Type::Bool) {
                         Type::Bool
                     } else {
-                        errors.push(TypeError { message: format!("Boolean operands required for logical operation, got {} and {}", l, r), subject: None });
+                        errors.push(TypeError {
+                            message: format!(
+                                "Boolean operands required for logical operation, got {} and {}",
+                                l, r
+                            ),
+                            subject: None,
+                        });
                         Type::Bool
                     }
                 }
@@ -281,8 +303,13 @@ fn infer_expr(expr: &Expr, env: &mut TypeEnv, errors: &mut Vec<TypeError>) -> Ty
             let t = infer_expr(expr, env, errors);
             match op {
                 UnOp::Neg => {
-                    if t == Type::Number { Type::Number } else {
-                        errors.push(TypeError { message: format!("Unary - expects number, got {}", t), subject: None });
+                    if t == Type::Number {
+                        Type::Number
+                    } else {
+                        errors.push(TypeError {
+                            message: format!("Unary - expects number, got {}", t),
+                            subject: None,
+                        });
                         Type::Any
                     }
                 }
@@ -291,7 +318,10 @@ fn infer_expr(expr: &Expr, env: &mut TypeEnv, errors: &mut Vec<TypeError>) -> Ty
                     if t == Type::Bool || t == Type::Any {
                         Type::Bool
                     } else {
-                        errors.push(TypeError { message: format!("Unary ! expects bool, got {}", t), subject: None });
+                        errors.push(TypeError {
+                            message: format!("Unary ! expects bool, got {}", t),
+                            subject: None,
+                        });
                         Type::Bool
                     }
                 }

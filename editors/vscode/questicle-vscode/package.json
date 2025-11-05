@@ -4,6 +4,11 @@
     "description": "VS Code support for the Questicle scripting language (LSP + syntax)",
     "version": "0.0.1",
     "publisher": "questicle",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/questicle/questicle-vscode"
+    },
+    "license": "MIT",
     "engines": {
         "vscode": "^1.84.0"
     },
