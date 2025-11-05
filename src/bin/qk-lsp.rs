@@ -328,13 +328,24 @@ impl Backend {
                     } else {
                         Range::new(Position::new(0, 0), Position::new(0, 1))
                     };
+                    // Append location and hint if available
+                    let line = range.start.line + 1; // 1-based for display
+                    let col = range.start.character + 1;
+                    let full_msg = if let Some(ref hint) = e.hint {
+                        format!(
+                            "{} (at line {}, col {})\nHint: {}",
+                            e.message, line, col, hint
+                        )
+                    } else {
+                        format!("{} (at line {}, col {})", e.message, line, col)
+                    };
                     let d = Diagnostic {
                         range,
                         severity: Some(DiagnosticSeverity::WARNING),
                         code: None,
                         code_description: None,
                         source: Some("questicle-typecheck".into()),
-                        message: e.message,
+                        message: full_msg,
                         related_information: None,
                         tags: None,
                         data: None,

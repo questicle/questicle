@@ -38,6 +38,7 @@ impl Type {
 pub struct TypeError {
     pub message: String,
     pub subject: Option<String>,
+    pub hint: Option<String>,
 }
 
 #[derive(Default)]
@@ -125,6 +126,10 @@ fn check_stmt(
                             name, t_init, ann_t
                         ),
                         subject: Some(name.clone()),
+                        hint: Some(format!(
+                            "Change the annotation to {} or convert the initializer to {}",
+                            t_init, ann_t
+                        )),
                     });
                 }
                 env.vars.insert(name.clone(), ann_t);
@@ -153,6 +158,10 @@ fn check_stmt(
                 errors.push(TypeError {
                     message: format!("If condition must be bool, got {}", t),
                     subject: None,
+                    hint: Some(
+                        "Make the condition a bool, e.g., compare explicitly: x != 0 or s != \"\""
+                            .into(),
+                    ),
                 });
             }
             check_stmt(then_branch, env, expected_ret, errors);
@@ -166,6 +175,10 @@ fn check_stmt(
                 errors.push(TypeError {
                     message: format!("While condition must be bool, got {}", t),
                     subject: None,
+                    hint: Some(
+                        "Make the condition a bool, e.g., compare explicitly: x != 0 or s != \"\""
+                            .into(),
+                    ),
                 });
             }
             check_stmt(body, env, expected_ret, errors);
@@ -183,6 +196,9 @@ fn check_stmt(
                 _ => errors.push(TypeError {
                     message: format!("For expects list, got {}", it),
                     subject: Some(name.clone()),
+                    hint: Some(
+                        "Iterate a list value. For maps, use keys(map) to iterate keys.".into(),
+                    ),
                 }),
             }
         }
@@ -194,6 +210,7 @@ fn check_stmt(
                         errors.push(TypeError {
                             message: format!("Return type {} does not match expected {}", t, exp),
                             subject: None,
+                            hint: Some("Change the return expression or update the function's return type annotation.".into()),
                         });
                     }
                 }
@@ -202,6 +219,7 @@ fn check_stmt(
                     errors.push(TypeError {
                         message: format!("Return type null does not match expected {}", exp),
                         subject: None,
+                        hint: Some("Return a value of the expected type or change the function's return type.".into()),
                     });
                 }
             }
@@ -227,6 +245,7 @@ fn infer_expr(expr: &Expr, env: &mut TypeEnv, errors: &mut Vec<TypeError>) -> Ty
                             vt, name, existing
                         ),
                         subject: Some(name.clone()),
+                        hint: Some("Change the variable's type annotation or the assigned expression to match.".into()),
                     });
                 }
             }
@@ -250,6 +269,7 @@ fn infer_expr(expr: &Expr, env: &mut TypeEnv, errors: &mut Vec<TypeError>) -> Ty
                         errors.push(TypeError {
                             message: format!("Invalid types for +: {} and {}", l, r),
                             subject: None,
+                            hint: Some("Use + for numbers or for string concatenation. Convert values to string first if needed.".into()),
                         });
                         Type::Any
                     }
@@ -261,6 +281,7 @@ fn infer_expr(expr: &Expr, env: &mut TypeEnv, errors: &mut Vec<TypeError>) -> Ty
                         errors.push(TypeError {
                             message: format!("Number operands required, got {} and {}", l, r),
                             subject: None,
+                            hint: Some("Ensure both operands are numbers (e.g., use len(x) for list/string length).".into()),
                         });
                         Type::Any
                     }
@@ -278,6 +299,7 @@ fn infer_expr(expr: &Expr, env: &mut TypeEnv, errors: &mut Vec<TypeError>) -> Ty
                                 l, r
                             ),
                             subject: None,
+                            hint: Some("Use <, <=, >, >= only with numbers. For other types, use == or !=.".into()),
                         });
                         Type::Bool
                     }
@@ -293,6 +315,7 @@ fn infer_expr(expr: &Expr, env: &mut TypeEnv, errors: &mut Vec<TypeError>) -> Ty
                                 l, r
                             ),
                             subject: None,
+                            hint: Some("Use && and || with booleans. Compare values to produce booleans if needed.".into()),
                         });
                         Type::Bool
                     }
@@ -309,6 +332,7 @@ fn infer_expr(expr: &Expr, env: &mut TypeEnv, errors: &mut Vec<TypeError>) -> Ty
                         errors.push(TypeError {
                             message: format!("Unary - expects number, got {}", t),
                             subject: None,
+                            hint: Some("Negation (-) applies only to numbers.".into()),
                         });
                         Type::Any
                     }
@@ -321,6 +345,7 @@ fn infer_expr(expr: &Expr, env: &mut TypeEnv, errors: &mut Vec<TypeError>) -> Ty
                         errors.push(TypeError {
                             message: format!("Unary ! expects bool, got {}", t),
                             subject: None,
+                            hint: Some("Logical not (!) applies to booleans. Compare values to make a bool.".into()),
                         });
                         Type::Bool
                     }
@@ -340,6 +365,7 @@ fn infer_expr(expr: &Expr, env: &mut TypeEnv, errors: &mut Vec<TypeError>) -> Ty
                                 arg_ts.len()
                             ),
                             subject: None,
+                            hint: Some("Add, remove, or reorder arguments to match the function signature.".into()),
                         });
                     } else {
                         for (i, (p, a)) in params.iter().zip(arg_ts.iter()).enumerate() {
@@ -352,6 +378,11 @@ fn infer_expr(expr: &Expr, env: &mut TypeEnv, errors: &mut Vec<TypeError>) -> Ty
                                         p
                                     ),
                                     subject: None,
+                                    hint: Some(format!(
+                                        "Change argument {} or update the parameter type to {}.",
+                                        i + 1,
+                                        a
+                                    )),
                                 });
                             }
                         }
@@ -414,6 +445,7 @@ fn infer_expr(expr: &Expr, env: &mut TypeEnv, errors: &mut Vec<TypeError>) -> Ty
                     errors.push(TypeError {
                         message: format!("Invalid index types: target {} indexed by {}", t, i),
                         subject: None,
+                        hint: Some("Lists use numeric indexes; maps/records use string keys or .field access.".into()),
                     });
                     Type::Any
                 }
