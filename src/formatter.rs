@@ -448,7 +448,7 @@ fn render(toks: Vec<Tok>, opts: &FormatterOptions) -> String {
                     let mut look = it.clone();
                     let mut depth = 1i32;
                     let mut has_inline_block_comment_inside = false;
-                    while let Some(n) = look.next() {
+                    for n in look.by_ref() {
                         match n.kind {
                             TKind::LBrace => depth += 1,
                             TKind::RBrace => {

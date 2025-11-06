@@ -25,6 +25,13 @@ impl Type {
             TypeExpr::Null => Type::Null,
             TypeExpr::List(i) => Type::List(Box::new(Type::from_expr(i))),
             TypeExpr::Map(i) => Type::Map(Box::new(Type::from_expr(i))),
+            TypeExpr::Record(fields) => {
+                let mut f = BTreeMap::new();
+                for (k, v) in fields {
+                    f.insert(k.clone(), Type::from_expr(v));
+                }
+                Type::Record(f)
+            }
             TypeExpr::Func(args, ret) => Type::Func(
                 args.iter().map(Type::from_expr).collect(),
                 Box::new(Type::from_expr(ret)),
@@ -132,7 +139,13 @@ fn check_stmt(
                         )),
                     });
                 }
-                env.vars.insert(name.clone(), ann_t);
+                // If developer annotated as map<T> but provided a precise record initializer, retain the precise record in env
+                // to enable attribute-aware tooling, as long as it's compatible with the annotation.
+                let store_type = match (&t_init, &ann_t) {
+                    (Type::Record(_), Type::Map(_)) => t_init.clone(),
+                    _ => ann_t,
+                };
+                env.vars.insert(name.clone(), store_type);
             } else {
                 env.vars.insert(name.clone(), t_init);
             }

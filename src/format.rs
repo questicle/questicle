@@ -247,6 +247,18 @@ fn fmt_type(t: &TypeExpr, out: &mut String) {
             fmt_type(i, out);
             out.push('>');
         }
+        TypeExpr::Record(fields) => {
+            out.push_str("record{");
+            for (i, (name, ty)) in fields.iter().enumerate() {
+                if i > 0 {
+                    out.push_str(", ");
+                }
+                out.push_str(name);
+                out.push(':');
+                fmt_type(ty, out);
+            }
+            out.push('}');
+        }
         TypeExpr::Func(args, ret) => {
             out.push_str("fn(");
             for (i, a) in args.iter().enumerate() {

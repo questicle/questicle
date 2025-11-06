@@ -52,7 +52,13 @@ impl LanguageServer for Backend {
         let docs = self.docs.read().await;
         if let Some(text) = docs.get(&uri) {
             if let Some(line) = text.lines().nth(pos.line as usize) {
-                let word = word_at(line, pos.character as usize);
+                // Prefer dotted identifiers when present (e.g., a.b.c)
+                let dotted = dotted_at(line, pos.character as usize);
+                let word = if dotted.contains('.') {
+                    dotted
+                } else {
+                    word_at(line, pos.character as usize)
+                };
                 if !word.is_empty() {
                     if let Some((l, s, e)) = find_decl_of(text, &word) {
                         let loc = Location {
@@ -147,14 +153,12 @@ impl LanguageServer for Backend {
                     }));
                 }
                 // Try type info
-                if !word.is_empty() {
-                    if let Ok(program) = Parser::new(text).parse_program() {
-                        let tc = questicle::typecheck::check_program(&program);
-                        if let Some(t) = tc.env.vars.get(&word) {
-                            let contents = HoverContents::Scalar(MarkedString::String(format!(
-                                "{}: {}",
-                                word, t
-                            )));
+                if let Ok(program) = Parser::new(text).parse_program() {
+                    let tc = questicle::typecheck::check_program(&program);
+                    // Support dotted paths like slime.name or deeper a.b.c
+                    if !word.is_empty() {
+                        if let Some(hover_str) = resolve_hover_type(&tc.env, &word) {
+                            let contents = HoverContents::Scalar(MarkedString::String(hover_str));
                             return Ok(Some(Hover {
                                 contents,
                                 range: None,
@@ -527,4 +531,53 @@ fn extract_call_context(prefix: &str) -> Option<(String, usize)> {
         }
     }
     Some((fname, commas))
+}
+
+// Extract a dotted identifier at the given column, e.g., slime.name or a.b.c
+fn dotted_at(line: &str, col: usize) -> String {
+    fn is_ident_char(c: char) -> bool {
+        c.is_alphanumeric() || c == '_' || c == '.'
+    }
+    let col = col.min(line.len());
+    let chars: Vec<char> = line.chars().collect();
+    let mut start = col;
+    while start > 0 && is_ident_char(chars[start - 1]) {
+        start -= 1;
+    }
+    let mut end = col;
+    while end < chars.len() && is_ident_char(chars[end]) {
+        end += 1;
+    }
+    chars[start..end].iter().collect()
+}
+
+// Resolve a hover type string from the type environment for a possibly dotted path
+fn resolve_hover_type(env: &questicle::typecheck::TypeEnv, token: &str) -> Option<String> {
+    use questicle::typecheck::Type;
+    if token.is_empty() {
+        return None;
+    }
+    // Split on '.'
+    let parts: Vec<&str> = token.split('.').collect();
+    if parts.is_empty() {
+        return None;
+    }
+    let mut t = env.vars.get(parts[0]).cloned()?;
+    // Walk subsequent fields if any
+    for seg in &parts[1..] {
+        match t {
+            Type::Record(ref fields) => {
+                t = fields.get(*seg).cloned().unwrap_or(Type::Any);
+            }
+            Type::Map(ref inner) => {
+                // map values are homogeneous; field access returns inner type
+                t = (**inner).clone();
+            }
+            _ => {
+                // Not a record or map; cannot resolve further
+                t = Type::Any;
+            }
+        }
+    }
+    Some(format!("{}: {}", token, t))
 }

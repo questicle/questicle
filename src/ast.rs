@@ -110,6 +110,8 @@ pub enum TypeExpr {
     Null,
     List(Box<TypeExpr>),
     Map(Box<TypeExpr>),
+    // Record type with named fields
+    Record(Vec<(String, TypeExpr)>),
     Func(Vec<TypeExpr>, Box<TypeExpr>),
     Any,
 }

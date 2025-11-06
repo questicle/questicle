@@ -464,6 +464,7 @@ impl Parser {
     //    'number' | 'string' | 'bool' | 'null' | 'any'
     //  | 'list' '<' Type '>'
     //  | 'map' '<' Type '>'
+    //  | 'record' '{' name ':' Type (',' name ':' Type)* '}'
     //  | 'fn' '(' [Type (',' Type)*] ')' '->' Type
     fn parse_type(&mut self) -> Result<TypeExpr, ParseError> {
         // Primitive keywords or identifiers
@@ -531,6 +532,35 @@ impl Parser {
                     let inner = self.parse_type()?;
                     self.consume(TokenKind::Greater, ">")?;
                     return Ok(TypeExpr::Map(Box::new(inner)));
+                }
+                "record" => {
+                    self.advance();
+                    self.consume(TokenKind::LeftBrace, "{")?;
+                    let mut fields: Vec<(String, TypeExpr)> = Vec::new();
+                    if !self.check(&TokenKind::RightBrace) {
+                        loop {
+                            // field name
+                            let name = if let Some(Token {
+                                kind: TokenKind::Identifier(s),
+                                ..
+                            }) = self.peek()
+                            {
+                                let n = s.clone();
+                                self.advance();
+                                n
+                            } else {
+                                return Err(self.error_expected("identifier"));
+                            };
+                            self.consume(TokenKind::Colon, ":")?;
+                            let fty = self.parse_type()?;
+                            fields.push((name, fty));
+                            if !self.matches(&[TokenKind::Comma]) {
+                                break;
+                            }
+                        }
+                    }
+                    self.consume(TokenKind::RightBrace, "}")?;
+                    return Ok(TypeExpr::Record(fields));
                 }
                 _ => {}
             }

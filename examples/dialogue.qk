@@ -8,7 +8,7 @@ for (i in[0, 1, 2]) {
 }
 fn respond(choice: number) {
   if (choice == 0) print("I am the village elder.");
-  elseif(choice == 1) print("Yes. Seek the cave north of here.");
+  elseif (choice == 1) print("Yes. Seek the cave north of here.");
   else print("Farewell.");
 }
 respond(1);

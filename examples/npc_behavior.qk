@@ -6,10 +6,10 @@ fn tick(npc: map < any > ) {
   if (npc.state == "idle") {
     print(npc.name + " is idle");
   }
-  elseif(npc.state == "alert") {
+  elseif (npc.state == "alert") {
     print(npc.name + " is on alert");
   }
-  elseif(npc.state == "combat") {
+  elseif (npc.state == "combat") {
     print(npc.name + " is fighting!");
   }
 }
