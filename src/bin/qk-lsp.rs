@@ -156,8 +156,10 @@ impl LanguageServer for Backend {
                 if let Ok(program) = Parser::new(text).parse_program() {
                     let tc = questicle::typecheck::check_program(&program);
                     // Support dotted paths like slime.name or deeper a.b.c
-                    if !word.is_empty() {
-                        if let Some(hover_str) = resolve_hover_type(&tc.env, &word) {
+                    let dotted = dotted_at(line, pos.character as usize);
+                    let token = if dotted.contains('.') { dotted } else { word };
+                    if !token.is_empty() {
+                        if let Some(hover_str) = resolve_hover_type(&tc.env, &token) {
                             let contents = HoverContents::Scalar(MarkedString::String(hover_str));
                             return Ok(Some(Hover {
                                 contents,
