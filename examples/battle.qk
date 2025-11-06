@@ -22,7 +22,7 @@ while (alive(hero) && alive(slime)) {
   slime = {
     name: slime.name, hp: slime.hp - hero.atk, atk: slime.atk
   };
-  if ( ! alive(slime)) {
+  if (! alive(slime)) {
     print(slime.name + " is defeated!");
     break;
   }
@@ -30,7 +30,7 @@ while (alive(hero) && alive(slime)) {
   hero = {
     name: hero.name, hp: hero.hp - slime.atk, atk: hero.atk
   };
-  if ( ! alive(hero)) {
+  if (! alive(hero)) {
     print(hero.name + " falls!");
     break;
   }

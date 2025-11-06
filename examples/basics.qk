@@ -14,24 +14,24 @@ while (n > 0) {
   n = n - 1;
 }
 // For-in over a list
-for (i in[0, 1, 2]) {
+for (i in [0, 1, 2]) {
   print("i = " + i);
 }
 // Lists and maps
-let nums: list < number > = [1, 2, 3];
-let nums2: list < number > = push(nums, 4);
+let nums: list<number> = [1, 2, 3];
+let nums2: list<number> = push(nums, 4);
 print("nums = " + nums);
 print("nums2 = " + nums2);
-let hero: map < any > = {
+let hero: map<any> = {
   name: "Aria", hp: 10, bag: ["potion"]
 };
 print("hero name: " + hero.name);
 print("bag size: " + len(hero.bag));
 // Functions and closures
-fn makeAdder(x: number) -> fn (number) -> number {
-  returnfn (y: number) -> number {
+fn makeAdder(x: number) -> fn(number) -> number {
+  returnfn(y: number) -> number {
     return x + y;
   };
 }
-let add5: fn (number) -> number = makeAdder(5);
+let add5: fn(number) -> number = makeAdder(5);
 print("add5(3) = " + add5(3));

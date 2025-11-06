@@ -1,15 +1,13 @@
 // Quest state machine
-let quest: map < string > = {
+let quest: map<string> = {
   id: "cave_intro", state: "not_started"
 };
-fn start(q: map < string > ) -> map < string > {
-  {
-    id: q.id, state: "started"
+fn start(q: map<string>) -> map<string> {
+  {    id: q.id, state: "started"
   }
 }
-fn complete(q: map < string > ) -> map < string > {
-  {
-    id: q.id, state: "completed"
+fn complete(q: map<string>) -> map<string> {
+  {    id: q.id, state: "completed"
   }
 }
 print("state: " + quest.state);

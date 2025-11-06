@@ -1,4 +1,4 @@
-let bag: list < string > = ["potion", "herb"];
+let bag: list<string> = ["potion", "herb"];
 print("bag: " + bag);
 bag = push(bag, "elixir");
 print("after push: " + bag);

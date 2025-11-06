@@ -1,4 +1,4 @@
-let hero: map < any > = {
+let hero: map<any> = {
   name: "Aria", stats: {
     hp: 12, mp: 5
   }

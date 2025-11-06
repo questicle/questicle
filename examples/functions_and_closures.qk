@@ -1,9 +1,9 @@
-fn counter() -> fn () -> number {
+fn counter() -> fn() -> number {
   let n: number = 0;
   fn inc() -> number {
     return n + 1;
   }
   return inc;
 }
-let c: fn () -> number = counter();
+let c: fn() -> number = counter();
 print("counter inc -> " + c());

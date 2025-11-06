@@ -1,15 +1,15 @@
 // Simple NPC behavior using state
-let npc: map < any > = {
+let npc: map<any> = {
   name: "Guard", state: "idle", hp: 5
 };
-fn tick(npc: map < any > ) {
+fn tick(npc: map<any>) {
   if (npc.state == "idle") {
     print(npc.name + " is idle");
   }
-  elseif (npc.state == "alert") {
+  elseif(npc.state == "alert") {
     print(npc.name + " is on alert");
   }
-  elseif (npc.state == "combat") {
+  elseif(npc.state == "combat") {
     print(npc.name + " is fighting!");
   }
 }
