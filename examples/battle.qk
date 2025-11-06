@@ -1,11 +1,20 @@
 // Very simple turn-based battle
-let hero: map < any > = {
+let hero: record {
+  name: string, hp: number, atk: number
+}
+= {
   name: "Aria", hp: 12, atk: 4
 };
-let slime: map < any > = {
+let slime: record {
+  name: string, hp: number, atk: number
+}
+= {
   name: "Slime", hp: 9, atk: 2
 };
-fn alive(x: map < any > ) -> bool {
+fn alive(x: record {
+  hp: number
+}
+) -> bool {
   x.hp > 0
 }
 while (alive(hero) && alive(slime)) {
