@@ -5,11 +5,11 @@ mod tests {
     #[test]
     fn parse_statements_and_blocks() {
         let src = r#"
-        let x = 1;
+    let x: number = 1;
         if (x) { x = x + 1; } else { x = x - 1; }
         while (x) { break; }
         for (i in [1,2]) { continue; }
-        { let y = 2; }
+    { let y: number = 2; }
         "#;
         let program = Parser::new(src).parse_program().expect("parse");
         assert!(program.statements.len() >= 4);
@@ -18,7 +18,7 @@ mod tests {
     #[test]
     fn parse_map_vs_block_disambiguation() {
         let src = r#"
-        let f = fn(q){ { id: q.id, state: "started" } };
+    let f: fn(any) -> any = fn(q: any){ { id: q.id, state: "started" } };
         "#;
         let program = Parser::new(src).parse_program().expect("parse");
         assert_eq!(program.statements.len(), 1);

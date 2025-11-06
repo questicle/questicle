@@ -1,13 +1,14 @@
-let npc: map<any> = { name: "Elder", mood: "wise" };
+let npc: map < any > = {
+  name: "Elder", mood: "wise"
+};
 print("NPC " + npc.name + ": Welcome, traveler.");
-
-let choices: list<string> = ["Who are you?", "Any quests?", "Goodbye."];
-for (i in [0,1,2]) { print("Choice " + i + ": " + choices[i]); }
-
-fn respond(choice: number) {
-	if (choice == 0) print("I am the village elder.");
-	else if (choice == 1) print("Yes. Seek the cave north of here.");
-	else print("Farewell.");
+let choices: list < string > = ["Who are you?", "Any quests?", "Goodbye."];
+for (i in[0, 1, 2]) {
+  print("Choice " + i + ": " + choices[i]);
 }
-
+fn respond(choice: number) {
+  if (choice == 0) print("I am the village elder.");
+  elseif(choice == 1) print("Yes. Seek the cave north of here.");
+  else print("Farewell.");
+}
 respond(1);

@@ -1,13 +1,13 @@
 // Typed Questicle examples
-
 let hp: number = 42;
 let name: string = "Hero";
-let tags: list<string> = ["warrior", "leader"];
-let attrs: map<number> = { str: 10, agi: 8 };
-
+let tags: list < string > = ["warrior", "leader"];
+let attrs: map < number > = {
+  str: 10, 
+  agi: 8
+};
 fn add(a: number, b: number) -> number {
-    return a + b;
+  return a + b;
 }
-
 let sum: number = add(2, 3);
 print(name + " has " + sum + " extra hp");

@@ -69,10 +69,8 @@ fn tokenize(src: &str) -> Vec<Tok> {
     let bytes = src.as_bytes();
     let len = bytes.len();
     let s = src;
-    // No block comment state required; comments are emitted directly
     while i < len {
         let c = s[i..].chars().next().unwrap();
-        // Newline
         if c == '\n' {
             v.push(Tok {
                 kind: TKind::Newline,
@@ -80,13 +78,10 @@ fn tokenize(src: &str) -> Vec<Tok> {
             i += 1;
             continue;
         }
-        // Whitespace (spaces/tabs) -> skip, will be normalized
         if c == ' ' || c == '\t' || c == '\r' || c == '\u{000C}' {
-            // form feed
             i += 1;
             continue;
         }
-        // Comments
         if s[i..].starts_with("//") {
             let start = i;
             i += 2;
@@ -120,7 +115,6 @@ fn tokenize(src: &str) -> Vec<Tok> {
             });
             continue;
         }
-        // Strings
         if c == '"' {
             let mut j = i + 1;
             let mut escaped = false;
@@ -146,7 +140,6 @@ fn tokenize(src: &str) -> Vec<Tok> {
             i = j;
             continue;
         }
-        // Two-char operators
         let two = if i + 1 < len { &s[i..i + 2] } else { "" };
         match two {
             "<=" | ">=" | "==" | "!=" | "&&" | "||" | "->" => {
@@ -158,7 +151,6 @@ fn tokenize(src: &str) -> Vec<Tok> {
             }
             _ => {}
         }
-        // Single char punctuation
         match c {
             '(' => {
                 v.push(Tok {
@@ -239,7 +231,6 @@ fn tokenize(src: &str) -> Vec<Tok> {
             }
             _ => {}
         }
-        // Identifier or keyword
         if is_ident_start(c) {
             let mut j = i + c.len_utf8();
             while j < len {
@@ -260,7 +251,6 @@ fn tokenize(src: &str) -> Vec<Tok> {
             i = j;
             continue;
         }
-        // Number (simple)
         if c.is_ascii_digit() {
             let mut j = i + 1;
             while j < len {
@@ -277,7 +267,6 @@ fn tokenize(src: &str) -> Vec<Tok> {
             i = j;
             continue;
         }
-        // Fallback: treat as identifier char
         v.push(Tok {
             kind: TKind::Ident(c.to_string()),
         });
@@ -293,6 +282,14 @@ fn render(toks: Vec<Tok>, opts: &FormatterOptions) -> String {
     let mut blanks = 0usize;
     let mut prev_was_token = false; // for spacing
     let mut prev_kind: Option<TKind> = None;
+    // Track inline map/object braces vs statement blocks
+    let mut brace_inline_stack: Vec<bool> = Vec::new();
+    // Track bracket depth to tweak comma spacing in lists
+    let mut bracket_depth: i32 = 0;
+    // Track generic depth for list/map type arguments to avoid spaces around '<' and '>'
+    let mut generic_depth: i32 = 0;
+    // Track when we are inside a function signature so the following '{' is treated as a block
+    let mut in_fn_signature: bool = false;
 
     // spacing rules handled inline
 
@@ -302,9 +299,11 @@ fn render(toks: Vec<Tok>, opts: &FormatterOptions) -> String {
         let kind_for_prev = tok.kind.clone();
         match kind_for_match {
             TKind::Newline => {
-                if !out.ends_with('\n') {
-                    out.push('\n');
+                // Always emit a newline for explicit newline tokens; trim trailing spaces first
+                while out.ends_with(' ') {
+                    out.pop();
                 }
+                out.push('\n');
                 need_indent = true;
                 prev_was_token = false;
                 blanks += 1;
@@ -317,10 +316,10 @@ fn render(toks: Vec<Tok>, opts: &FormatterOptions) -> String {
                     out.push(' ');
                 }
                 out.push_str(&text);
-                out.push('\n');
-                need_indent = true;
+                // Do not inject a newline here; the following Newline token will handle it
+                need_indent = false;
                 prev_was_token = false;
-                blanks = 1; // comment ends a line
+                blanks = 0;
             }
             TKind::BlockComment(text) => {
                 if need_indent {
@@ -344,12 +343,22 @@ fn render(toks: Vec<Tok>, opts: &FormatterOptions) -> String {
                 }
                 // If the comment was multi-line, we likely ended with a newline already
                 if has_newline {
-                    if !out.ends_with('\n') {
-                        out.push('\n');
+                    // Only insert a newline if one does not immediately follow in the token stream
+                    let newline_follows =
+                        matches!(it.peek().map(|t| &t.kind), Some(TKind::Newline));
+                    if !newline_follows {
+                        if !out.ends_with('\n') {
+                            out.push('\n');
+                        }
+                        need_indent = true;
+                        prev_was_token = false;
+                        blanks = 1;
+                    } else {
+                        // Defer to the next Newline token; reset blank counter so it isn't collapsed
+                        need_indent = true;
+                        prev_was_token = false;
+                        blanks = 0;
                     }
-                    need_indent = true;
-                    prev_was_token = false;
-                    blanks = 1;
                 } else {
                     // inline block comment stays inline; ensure spacing before next identifier-like token
                     need_indent = false;
@@ -367,31 +376,45 @@ fn render(toks: Vec<Tok>, opts: &FormatterOptions) -> String {
                 }
             }
             TKind::RBrace => {
-                // Close block: dedent first
-                if need_indent { /* ok */
+                // Close block or inline map/object
+                let inline = brace_inline_stack.pop().unwrap_or(false);
+                if inline {
+                    if !out.ends_with(' ') && !out.ends_with('{') && !out.ends_with('\n') {
+                        out.push(' ');
+                    }
+                    out.push('}');
+                    need_indent = false;
+                    prev_was_token = true;
+                    blanks = 0;
                 } else {
-                    /* ensure newline before a closing brace unless already at line start */
-                    out.push('\n');
-                }
-                indent = (indent - 1).max(0);
-                write_indent(&mut out, indent, opts.indent_size);
-                out.push('}');
-                need_indent = false;
-                prev_was_token = true;
-                blanks = 0;
-                // If next is semicolon, don't add newline now; else add newline
-                match it.peek().map(|t| &t.kind) {
-                    Some(TKind::Semicolon) => {}
-                    _ => {
+                    // Close block: dedent first
+                    if need_indent { /* ok */
+                    } else {
+                        // If the previous token was an inline object close, ensure a semicolon before we break the line
+                        if matches!(prev_kind, Some(TKind::RBrace)) && !out.ends_with(';') {
+                            out.push(';');
+                        }
                         out.push('\n');
-                        need_indent = true;
-                        prev_was_token = false;
-                        blanks = 1;
+                    }
+                    indent = (indent - 1).max(0);
+                    write_indent(&mut out, indent, opts.indent_size);
+                    out.push('}');
+                    need_indent = false;
+                    prev_was_token = true;
+                    blanks = 0;
+                    // If next is semicolon or a Newline token, don't add newline now; else add newline
+                    match it.peek().map(|t| &t.kind) {
+                        Some(TKind::Semicolon) | Some(TKind::Newline) => {}
+                        _ => {
+                            out.push('\n');
+                            need_indent = true;
+                            prev_was_token = false;
+                            blanks = 1;
+                        }
                     }
                 }
             }
             TKind::LBrace => {
-                // space before '{' if needed
                 if need_indent {
                     write_indent(&mut out, indent, opts.indent_size);
                 }
@@ -402,23 +425,105 @@ fn render(toks: Vec<Tok>, opts: &FormatterOptions) -> String {
                 {
                     out.push(' ');
                 }
-                out.push('{');
-                out.push('\n');
-                indent += 1;
-                need_indent = true;
-                prev_was_token = false;
-                blanks = 1;
+                let is_block_context = match &prev_kind {
+                    Some(TKind::RParen) => true,
+                    Some(TKind::Keyword(k)) => {
+                        matches!(k.as_str(), "if" | "else" | "while" | "for" | "fn")
+                    }
+                    _ => false,
+                } || in_fn_signature;
+                if is_block_context {
+                    out.push('{');
+                    if !matches!(it.peek().map(|t| &t.kind), Some(TKind::Newline)) {
+                        out.push('\n');
+                    }
+                    indent += 1;
+                    need_indent = true;
+                    prev_was_token = false;
+                    blanks = 1;
+                    brace_inline_stack.push(false);
+                    // we've consumed the function signature
+                    in_fn_signature = false;
+                } else {
+                    let mut look = it.clone();
+                    let mut depth = 1i32;
+                    let mut has_inline_block_comment_inside = false;
+                    while let Some(n) = look.next() {
+                        match n.kind {
+                            TKind::LBrace => depth += 1,
+                            TKind::RBrace => {
+                                depth -= 1;
+                                if depth == 0 {
+                                    break;
+                                }
+                            }
+                            TKind::BlockComment(ref s) if !s.contains('\n') => {
+                                has_inline_block_comment_inside = true;
+                                break;
+                            }
+                            _ => {}
+                        }
+                    }
+                    // If immediate next token is a newline, treat as a multi-line object/map literal block
+                    let newline_immediately_follows =
+                        matches!(it.peek().map(|t| &t.kind), Some(TKind::Newline));
+                    if has_inline_block_comment_inside || newline_immediately_follows {
+                        out.push('{');
+                        if !newline_immediately_follows {
+                            out.push('\n');
+                        }
+                        indent += 1;
+                        // If a Newline token follows immediately, let it insert the newline;
+                        // otherwise we already inserted one above.
+                        need_indent = !newline_immediately_follows;
+                        prev_was_token = true;
+                        // We'll let the upcoming Newline token (if any) manage blanks.
+                        if !newline_immediately_follows {
+                            blanks = 1;
+                        }
+                        brace_inline_stack.push(false);
+                    } else {
+                        out.push('{');
+                        out.push(' ');
+                        need_indent = false;
+                        prev_was_token = true;
+                        blanks = 0;
+                        brace_inline_stack.push(true);
+                    }
+                }
             }
             TKind::Semicolon => {
                 out.push(';');
-                out.push('\n');
-                need_indent = true;
-                prev_was_token = false;
-                blanks = 1;
+                // If a single-line block or line comment follows, keep it inline instead of breaking line
+                let inline_block_comment_follows = it
+                    .peek()
+                    .and_then(|t| match &t.kind {
+                        TKind::BlockComment(s) => Some(!s.contains('\n')),
+                        _ => None,
+                    })
+                    .unwrap_or(false);
+                let inline_line_comment_follows =
+                    matches!(it.peek().map(|t| &t.kind), Some(TKind::LineComment(_)));
+                let else_follows = matches!(it.peek().map(|t| &t.kind), Some(TKind::Keyword(ref s)) if s == "else");
+                let newline_follows = matches!(it.peek().map(|t| &t.kind), Some(TKind::Newline));
+                if inline_block_comment_follows || inline_line_comment_follows || else_follows {
+                    out.push(' ');
+                    need_indent = false;
+                    prev_was_token = true; // allow the comment arm to add itself inline
+                    blanks = 0;
+                } else if !newline_follows {
+                    out.push('\n');
+                    need_indent = true;
+                    prev_was_token = false;
+                    blanks = 1;
+                }
             }
             TKind::Comma => {
                 out.push(',');
-                out.push(' ');
+                // Put a space after a comma except inside generic angle brackets
+                if generic_depth <= 0 {
+                    out.push(' ');
+                }
                 prev_was_token = true;
                 blanks = 0;
                 need_indent = false;
@@ -435,8 +540,10 @@ fn render(toks: Vec<Tok>, opts: &FormatterOptions) -> String {
                 if need_indent {
                     write_indent(&mut out, indent, opts.indent_size);
                 }
-                if let Some(TKind::Keyword(_)) = prev_kind {
-                    out.push(' ');
+                if let Some(TKind::Keyword(ref k)) = prev_kind {
+                    if k == "if" || k == "while" || k == "for" {
+                        out.push(' ');
+                    }
                 }
                 out.push('(');
                 prev_was_token = true;
@@ -453,12 +560,20 @@ fn render(toks: Vec<Tok>, opts: &FormatterOptions) -> String {
                     write_indent(&mut out, indent, opts.indent_size);
                     need_indent = false;
                 }
+                // ensure a space after 'in' before a list literal
+                if let Some(TKind::Keyword(ref k)) = prev_kind {
+                    if k == "in" && !out.ends_with(' ') && !out.ends_with('\n') {
+                        out.push(' ');
+                    }
+                }
                 out.push('[');
+                bracket_depth += 1;
                 prev_was_token = true;
                 blanks = 0;
             }
             TKind::RBracket => {
                 out.push(']');
+                bracket_depth = (bracket_depth - 1).max(0);
                 prev_was_token = true;
                 blanks = 0;
                 need_indent = false;
@@ -469,47 +584,69 @@ fn render(toks: Vec<Tok>, opts: &FormatterOptions) -> String {
                 blanks = 0;
                 need_indent = false;
             }
-            TKind::Assign | TKind::Op(_) => {
+            TKind::Assign => {
                 if need_indent {
                     write_indent(&mut out, indent, opts.indent_size);
                     need_indent = false;
                 }
-                if !out.ends_with(' ') && !out.ends_with('\n') {
-                    out.push(' ');
-                }
-                match &tok.kind {
-                    TKind::Assign => out.push('='),
-                    TKind::Op(op) => out.push_str(op),
-                    _ => {}
-                }
-                out.push(' ');
-                prev_was_token = true;
-                blanks = 0;
-            }
-            TKind::Ident(ref s) | TKind::Number(ref s) => {
-                if need_indent {
-                    write_indent(&mut out, indent, opts.indent_size);
-                    need_indent = false;
-                }
-                // Add space if previous token requires it
                 if let Some(
                     TKind::Ident(_)
                     | TKind::Number(_)
                     | TKind::Str(_)
                     | TKind::RParen
                     | TKind::RBracket
-                    | TKind::Keyword(_),
+                    | TKind::RBrace
+                    | TKind::Op(_),
                 ) = &prev_kind
                 {
                     if !out.ends_with(' ') && !out.ends_with('\n') {
                         out.push(' ');
                     }
                 }
-                out.push_str(s);
+                out.push('=');
+                out.push(' ');
                 prev_was_token = true;
                 blanks = 0;
             }
-            TKind::Str(ref s) => {
+            TKind::Op(op) => {
+                if need_indent {
+                    write_indent(&mut out, indent, opts.indent_size);
+                    need_indent = false;
+                }
+                let is_generic_open = op == "<"
+                    && matches!(&prev_kind, Some(TKind::Ident(ref s)) if s == "list" || s == "map");
+                let is_generic_close = op == ">" && generic_depth > 0;
+                if !(is_generic_open || is_generic_close) {
+                    if let Some(
+                        TKind::Ident(_)
+                        | TKind::Number(_)
+                        | TKind::Str(_)
+                        | TKind::RParen
+                        | TKind::RBracket
+                        | TKind::RBrace,
+                    ) = &prev_kind
+                    {
+                        if !out.ends_with(' ') && !out.ends_with('\n') {
+                            out.push(' ');
+                        }
+                    }
+                }
+                if is_generic_open {
+                    generic_depth += 1;
+                    out.push('<');
+                } else if is_generic_close {
+                    generic_depth -= 1;
+                    out.push('>');
+                } else {
+                    out.push_str(&op);
+                    if !out.ends_with(' ') && !out.ends_with('\n') {
+                        out.push(' ');
+                    }
+                }
+                prev_was_token = true;
+                blanks = 0;
+            }
+            TKind::Ident(s) => {
                 if need_indent {
                     write_indent(&mut out, indent, opts.indent_size);
                     need_indent = false;
@@ -519,14 +656,59 @@ fn render(toks: Vec<Tok>, opts: &FormatterOptions) -> String {
                     | TKind::Number(_)
                     | TKind::Str(_)
                     | TKind::RParen
-                    | TKind::RBracket,
+                    | TKind::RBracket
+                    | TKind::RBrace,
                 ) = &prev_kind
                 {
                     if !out.ends_with(' ') && !out.ends_with('\n') {
                         out.push(' ');
                     }
                 }
-                out.push_str(s);
+                out.push_str(&s);
+                prev_was_token = true;
+                blanks = 0;
+            }
+            TKind::Number(s) => {
+                if need_indent {
+                    write_indent(&mut out, indent, opts.indent_size);
+                    need_indent = false;
+                }
+                if let Some(
+                    TKind::Ident(_)
+                    | TKind::Number(_)
+                    | TKind::Str(_)
+                    | TKind::RParen
+                    | TKind::RBracket
+                    | TKind::RBrace,
+                ) = &prev_kind
+                {
+                    if !out.ends_with(' ') && !out.ends_with('\n') {
+                        out.push(' ');
+                    }
+                }
+                out.push_str(&s);
+                prev_was_token = true;
+                blanks = 0;
+            }
+            TKind::Str(s) => {
+                if need_indent {
+                    write_indent(&mut out, indent, opts.indent_size);
+                    need_indent = false;
+                }
+                if let Some(
+                    TKind::Ident(_)
+                    | TKind::Number(_)
+                    | TKind::Str(_)
+                    | TKind::RParen
+                    | TKind::RBracket
+                    | TKind::RBrace,
+                ) = &prev_kind
+                {
+                    if !out.ends_with(' ') && !out.ends_with('\n') {
+                        out.push(' ');
+                    }
+                }
+                out.push_str(&s);
                 prev_was_token = true;
                 blanks = 0;
             }
@@ -548,6 +730,24 @@ fn render(toks: Vec<Tok>, opts: &FormatterOptions) -> String {
                     }
                 }
                 out.push_str(k);
+                if k == "fn" {
+                    in_fn_signature = true;
+                }
+                // Add a trailing space after keywords when followed by an identifier-like token or '{'.
+                // Do NOT add here if next is '(', since LParen arm will add the space for constructs like `if (`.
+                match it.peek().map(|t| &t.kind) {
+                    Some(TKind::LParen) => { /* defer spacing to LParen */ }
+                    Some(TKind::Ident(_))
+                    | Some(TKind::Number(_))
+                    | Some(TKind::Str(_))
+                    | Some(TKind::Keyword(_))
+                    | Some(TKind::LBrace) => {
+                        if !out.ends_with(' ') && !out.ends_with('\n') {
+                            out.push(' ');
+                        }
+                    }
+                    _ => {}
+                }
                 prev_was_token = true;
                 blanks = 0;
             }
@@ -555,14 +755,12 @@ fn render(toks: Vec<Tok>, opts: &FormatterOptions) -> String {
 
         // collapse blank lines beyond max
         if need_indent && blanks > opts.max_blank_lines {
-            // too many blanks
-            // remove extra blank just added
+            // too many blanks; trim down to the configured maximum
             while blanks > opts.max_blank_lines && out.ends_with('\n') {
                 out.pop();
                 blanks -= 1;
             }
-            out.push('\n');
-            blanks = opts.max_blank_lines;
+            // Do not add another newline here; we already have at most max blank lines
         }
 
         prev_kind = Some(match kind_for_prev {

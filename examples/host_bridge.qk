@@ -1,3 +1,6 @@
 // Demonstrate host(op, payload)
-let result = host("spawn", { kind: "npc", name: "Elder" });
+let result: any = host("spawn", {
+  kind: "npc", name: "Elder"
+}
+);
 print("host returned: " + result);

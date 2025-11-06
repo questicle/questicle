@@ -274,6 +274,9 @@ fn infer_expr(expr: &Expr, env: &mut TypeEnv, errors: &mut Vec<TypeError>) -> Ty
                 BinOp::Sub | BinOp::Mul | BinOp::Div | BinOp::Mod => {
                     if l == Type::Number && r == Type::Number {
                         Type::Number
+                    } else if l == Type::Any || r == Type::Any {
+                        // be permissive when dynamic types are involved
+                        Type::Number
                     } else {
                         errors.push(TypeError {
                             message: format!("Number operands required, got {} and {}", l, r),
@@ -494,6 +497,10 @@ fn is_compatible(a: &Type, b: &Type) -> bool {
     match (a, b) {
         (Type::List(x), Type::List(y)) => is_compatible(x, y),
         (Type::Map(x), Type::Map(y)) => is_compatible(x, y),
+        // Allow assigning precise records to a map<T> when all field types are compatible with T
+        (Type::Record(fields), Type::Map(inner)) => {
+            fields.values().all(|t| is_compatible(t, inner))
+        }
         // Structural: a record is compatible with a record if all fields in b exist in a and are compatible.
         (Type::Record(ra), Type::Record(rb)) => rb.iter().all(|(k, vb)| match ra.get(k) {
             Some(va) => is_compatible(va, vb),

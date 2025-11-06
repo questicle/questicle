@@ -4,7 +4,7 @@ use questicle::{Host, Interpreter, Parser};
 fn hello_runs() {
     let src = r#"
         print("hi");
-        let x = 1 + 2 * 3;
+        let x: number = 1 + 2 * 3;
         x;
     "#;
     let program = Parser::new(src).parse_program().expect("parse");

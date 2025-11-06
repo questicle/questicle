@@ -1,4 +1,9 @@
-let hero = { name: "Aria", stats: { hp: 12, mp: 5 }, bag: ["potion", "key"] };
+let hero: map < any > = {
+  name: "Aria", stats: {
+    hp: 12, mp: 5
+  }
+, bag: ["potion", "key"]
+};
 print(hero.name);
 print(hero.stats.hp);
 print(hero.bag[1]);

@@ -55,13 +55,12 @@ impl Parser {
 
     fn let_decl(&mut self) -> Result<Stmt, ParseError> {
         let name = self.consume_ident("identifier")?;
-        // Optional type annotation: ": Type"
-        let ty = if self.check(&TokenKind::Colon) {
-            self.advance();
-            Some(self.parse_type()?)
-        } else {
-            None
-        };
+        // Require type annotation: ": Type"
+        if !self.check(&TokenKind::Colon) {
+            return Err(self.error_expected(": type annotation"));
+        }
+        self.advance();
+        let ty = Some(self.parse_type()?);
         self.consume(TokenKind::Assign, "=")?;
         let init = self.expression()?;
         self.optional(TokenKind::Semicolon);
